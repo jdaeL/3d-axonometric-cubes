@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive 3D Cubes</title>
+    <title>Interactive 3D Cubes with Glow</title>
     <style>
         /* Basic styles to make the scene fill the screen */
         body {
@@ -52,24 +52,39 @@
     <canvas id="scene-container"></canvas>
     <div id="info-card">Memory</div>
 
-    <!-- Import three.js library -->
+    <!-- Import Core three.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Import Post-processing and Shader libraries for the glow effect -->
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    
+    <!-- Import GSAP for smooth animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
 
     <script>
+        // === COLOR & ANIMATION CONSTANTS ===
+        const ORIGINAL_COLOR = 0x6a0dad;
+        const HOVER_COLOR = 0x00ff00; // Green
+        const INACTIVE_COLOR = 0x444444; // Light-grey (darkened for contrast)
+        const ANIMATION_DURATION = 1.0; // 1 second
+
         // === BASIC SETUP ===
         const scene = new THREE.Scene();
         const canvas = document.getElementById('scene-container');
         const renderer = new THREE.WebGLRenderer({ 
             canvas: canvas,
-            alpha: true, // Allows for transparent background
+            alpha: true,
             antialias: true 
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-
         // === AXONOMETRIC CAMERA ===
-        // An orthographic camera provides the axonometric view (no perspective distortion)
         const aspect = window.innerWidth / window.innerHeight;
         const frustumSize = 10;
         const camera = new THREE.OrthographicCamera(
@@ -80,46 +95,55 @@
             1, 
             1000
         );
-        // Position the camera to get a nice diagonal view
         camera.position.set(10, 10, 10);
-        camera.lookAt(scene.position); // Look at the center of the scene
+        camera.lookAt(scene.position);
         scene.add(camera);
 
         // === LIGHTING ===
-        // Ambient light to softly illuminate the whole scene
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-
-        // Directional light to create shadows and highlights
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 20, 5);
         scene.add(directionalLight);
 
         // === OBJECTS (CUBES) ===
-        const cubeGroup = new THREE.Group(); // Use a group to rotate both cubes together
-        
-        // Define geometry and material once to reuse
         const geometry = new THREE.BoxGeometry(2, 2, 2);
-        const material = new THREE.MeshStandardMaterial({
-            color: 0x6a0dad, // A nice purple color
+        
+        // Cubes need unique materials to have different colors/emissiveness
+        const material1 = new THREE.MeshStandardMaterial({
+            color: ORIGINAL_COLOR,
             metalness: 0.3,
-            roughness: 0.4
+            roughness: 0.4,
+            emissive: 0x000000, // Black emissive color by default
+            emissiveIntensity: 0
         });
+        const material2 = material1.clone();
 
-        // Create and position the first cube
-        const cube1 = new THREE.Mesh(geometry, material);
+        const cube1 = new THREE.Mesh(geometry, material1);
         cube1.position.x = -2.5;
-        cube1.userData.name = 'Memory Cube 1'; // Add custom data
-        cubeGroup.add(cube1);
+        scene.add(cube1);
 
-        // Create and position the second cube
-        const cube2 = new THREE.Mesh(geometry, material);
+        const cube2 = new THREE.Mesh(geometry, material2);
         cube2.position.x = 2.5;
-        cube2.userData.name = 'Memory Cube 2';
-        cubeGroup.add(cube2);
+        scene.add(cube2);
 
-        scene.add(cubeGroup);
-        const cubes = [cube1, cube2]; // An array for easy access in raycasting
+        const cubes = [cube1, cube2];
+
+        // === POST-PROCESSING FOR GLOW (BLOOM) ===
+        // 1. Create a render pass
+        const renderPass = new THREE.RenderPass(scene, camera);
+
+        // 2. Create the bloom pass for the glow effect
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0; // Brightness threshold to start glowing
+        bloomPass.strength = 1.2; // Intensity of the glow
+        bloomPass.radius = 0.5;   // Radius of the glow
+
+        // 3. Create the composer and add the passes
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderPass);
+        composer.addPass(bloomPass);
+
 
         // === HOVER INTERACTION (RAYCASTING) ===
         const raycaster = new THREE.Raycaster();
@@ -128,12 +152,50 @@
         let hoveredObject = null;
 
         function onMouseMove(event) {
-            // Calculate mouse position in normalized device coordinates (-1 to +1)
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         }
 
-        // === ANIMATION LOOP ===
+        // === ANIMATION LOGIC ===
+        function animateToHoverState(target) {
+            // Animate all other cubes to the inactive state
+            cubes.forEach(cube => {
+                if (cube !== target) {
+                    // Kill any running animations on this object to avoid conflicts
+                    gsap.killTweensOf(cube.material.color);
+                    gsap.killTweensOf(cube.material);
+                    
+                    // Animate to inactive grey color
+                    gsap.to(cube.material.color, { r: 0.26, g: 0.26, b: 0.26, duration: ANIMATION_DURATION });
+                    // Animate emissive properties to turn off glow
+                    gsap.to(cube.material, { emissiveIntensity: 0, duration: ANIMATION_DURATION });
+                }
+            });
+
+            // Animate the target cube to the active/glowing state
+            gsap.killTweensOf(target.material.color);
+            gsap.killTweensOf(target.material);
+
+            // Animate to green
+            gsap.to(target.material.color, { r: 0, g: 1, b: 0, duration: ANIMATION_DURATION });
+            // Animate emissive color to green and intensity to make it glow
+            gsap.to(target.material.emissive, { r: 0, g: 1, b: 0, duration: ANIMATION_DURATION });
+            gsap.to(target.material, { emissiveIntensity: 1, duration: ANIMATION_DURATION });
+        }
+        
+        function animateToDefaultState() {
+             cubes.forEach(cube => {
+                gsap.killTweensOf(cube.material.color);
+                gsap.killTweensOf(cube.material);
+                 // Animate back to original purple color
+                 gsap.to(cube.material.color, { r: 0.415, g: 0.05, b: 0.866, duration: ANIMATION_DURATION });
+                 // Turn off any glow
+                 gsap.to(cube.material, { emissiveIntensity: 0, duration: ANIMATION_DURATION });
+            });
+        }
+
+
+        // === MAIN RENDER LOOP ===
         function animate() {
             requestAnimationFrame(animate);
 
@@ -143,81 +205,62 @@
 
             if (intersects.length > 0) {
                 const firstIntersect = intersects[0].object;
-
-                // If we are hovering over a new object
                 if (hoveredObject !== firstIntersect) {
                     hoveredObject = firstIntersect;
+                    
+                    // Trigger animations
+                    animateToHoverState(hoveredObject);
 
-                    // Calculate screen position of the cube
+                    // Position and show the info card
                     const screenPosition = toScreenPosition(hoveredObject, camera);
-
-                    // Position and show the card
                     infoCard.style.left = `${screenPosition.x + 20}px`;
                     infoCard.style.top = `${screenPosition.y - 20}px`;
                     infoCard.style.display = 'block';
-                    // Use a timeout to allow the display property to apply before changing opacity
-                    setTimeout(() => {
-                        infoCard.style.opacity = '1';
-                    }, 10);
+                    setTimeout(() => infoCard.style.opacity = '1', 10);
                 } else {
-                    // Update position even if it's the same object
+                    // Update card position while hovering
                     const screenPosition = toScreenPosition(hoveredObject, camera);
                     infoCard.style.left = `${screenPosition.x + 20}px`;
                     infoCard.style.top = `${screenPosition.y - 20}px`;
                 }
             } else {
-                // If we are no longer hovering over any object
                 if (hoveredObject) {
+                    // Trigger animation back to default state
+                    animateToDefaultState();
                     hoveredObject = null;
+
+                    // Hide info card
                     infoCard.style.opacity = '0';
-                    // Hide the card after the transition ends
-                    setTimeout(() => {
-                        if (!hoveredObject) { // Check again in case we've hovered over something else quickly
-                             infoCard.style.display = 'none';
-                        }
-                    }, 300); // Match transition duration
+                    setTimeout(() => { if (!hoveredObject) infoCard.style.display = 'none'; }, 300);
                 }
             }
 
-            // Render the scene
-            renderer.render(scene, camera);
+            // Render the scene via the composer to apply post-processing effects
+            composer.render();
         }
 
         // === UTILITY FUNCTION ===
-        // Converts a 3D position to a 2D screen position
         function toScreenPosition(obj, cam) {
             const vector = new THREE.Vector3();
-            obj.getWorldPosition(vector); // Get the world position of the object
-            vector.project(cam); // Project the 3D point into 2D camera space (-1 to 1)
-
-            // Convert to pixel coordinates
+            obj.getWorldPosition(vector);
+            vector.project(cam);
             vector.x = Math.round((0.5 + vector.x / 2) * window.innerWidth);
             vector.y = Math.round((0.5 - vector.y / 2) * window.innerHeight);
-
-            return {
-                x: vector.x,
-                y: vector.y
-            };
+            return { x: vector.x, y: vector.y };
         }
 
         // === EVENT LISTENERS ===
         window.addEventListener('mousemove', onMouseMove);
 
-        // Handle window resizing
         window.addEventListener('resize', () => {
             const width = window.innerWidth;
             const height = window.innerHeight;
 
-            // Update camera aspect ratio
-            const newAspect = width / height;
-            camera.left = frustumSize * newAspect / -2;
-            camera.right = frustumSize * newAspect / 2;
-            camera.top = frustumSize / 2;
-            camera.bottom = frustumSize / -2;
+            camera.aspect = width / height;
             camera.updateProjectionMatrix();
 
-            // Update renderer size
             renderer.setSize(width, height);
+            composer.setSize(width, height);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         });
 
