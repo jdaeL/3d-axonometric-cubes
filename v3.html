@@ -158,6 +158,18 @@
         // Get hover card element
         const hoverCard = document.getElementById('hoverCard');
         
+        // Store original scales and positions
+        const originalScale1 = cube1.scale.clone();
+        const originalScale2 = cube2.scale.clone();
+        const originalPosition1 = cube1.position.clone();
+        const originalPosition2 = cube2.position.clone();
+        
+        // Animation properties for smooth transitions
+        let targetScale1 = originalScale1.clone();
+        let targetScale2 = originalScale2.clone();
+        let targetPosition1 = originalPosition1.clone();
+        let targetPosition2 = originalPosition2.clone();
+        
         // Mouse move handler
         function onMouseMove(event) {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -182,17 +194,40 @@
                 hoverCard.style.top = (y - 60) + 'px';
                 hoverCard.classList.add('visible');
                 
-                // Highlight the intersected cube
+                // Highlight and grow the intersected cube into a building
                 intersectedObject.material.emissive.setHex(0x222222);
                 
-                // Reset other cube
-                const otherCube = intersectedObject === cube1 ? cube2 : cube1;
-                otherCube.material.emissive.setHex(0x000000);
+                if (intersectedObject === cube1) {
+                    // Transform cube1 into a building
+                    targetScale1.set(1, 2.5, 1); // Grow height to make it building-like
+                    targetPosition1.set(originalPosition1.x, originalPosition1.y + 1.5, originalPosition1.z); // Adjust Y position
+                    
+                    // Reset cube2
+                    targetScale2.copy(originalScale2);
+                    targetPosition2.copy(originalPosition2);
+                    cube2.material.emissive.setHex(0x000000);
+                } else {
+                    // Transform cube2 into a building
+                    targetScale2.set(1, 2.5, 1); // Grow height to make it building-like
+                    targetPosition2.set(originalPosition2.x, originalPosition2.y + 1.5, originalPosition2.z); // Adjust Y position
+                    
+                    // Reset cube1
+                    targetScale1.copy(originalScale1);
+                    targetPosition1.copy(originalPosition1);
+                    cube1.material.emissive.setHex(0x000000);
+                }
                 
             } else {
                 hoverCard.classList.remove('visible');
+                
+                // Reset both cubes to original state
                 cube1.material.emissive.setHex(0x000000);
                 cube2.material.emissive.setHex(0x000000);
+                
+                targetScale1.copy(originalScale1);
+                targetScale2.copy(originalScale2);
+                targetPosition1.copy(originalPosition1);
+                targetPosition2.copy(originalPosition2);
             }
         }
         
@@ -217,12 +252,16 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            // Gentle rotation for visual interest
-            cube1.rotation.x += 0.005;
-            cube1.rotation.y += 0.005;
+            // Smooth interpolation for cube transformations
+            const lerpFactor = 0.1;
             
-            cube2.rotation.x += 0.007;
-            cube2.rotation.y += 0.003;
+            // Smoothly interpolate cube1 scale and position
+            cube1.scale.lerp(targetScale1, lerpFactor);
+            cube1.position.lerp(targetPosition1, lerpFactor);
+            
+            // Smoothly interpolate cube2 scale and position
+            cube2.scale.lerp(targetScale2, lerpFactor);
+            cube2.position.lerp(targetPosition2, lerpFactor);
             
             renderer.render(scene, camera);
         }
