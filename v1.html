@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D Cubes</title>
+    <style>
+        /* Basic styles to make the scene fill the screen */
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a1a;
+        }
+
+        /* The canvas where the 3D scene will be rendered */
+        #scene-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        /* Styling for the info card that appears on hover */
+        #info-card {
+            display: none; /* Hidden by default */
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 16px 24px;
+            color: white;
+            font-size: 24px;
+            font-weight: 600;
+            border-radius: 12px;
+            
+            /* The "frosted glass" or "stained-glass" effect */
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px); /* For Safari */
+            
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            pointer-events: none; /* The card itself shouldn't be interactive */
+            transition: opacity 0.3s ease; /* Smooth fade in/out */
+            opacity: 0;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <canvas id="scene-container"></canvas>
+    <div id="info-card">Memory</div>
+
+    <!-- Import three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // === BASIC SETUP ===
+        const scene = new THREE.Scene();
+        const canvas = document.getElementById('scene-container');
+        const renderer = new THREE.WebGLRenderer({ 
+            canvas: canvas,
+            alpha: true, // Allows for transparent background
+            antialias: true 
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+
+        // === AXONOMETRIC CAMERA ===
+        // An orthographic camera provides the axonometric view (no perspective distortion)
+        const aspect = window.innerWidth / window.innerHeight;
+        const frustumSize = 10;
+        const camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2, 
+            frustumSize * aspect / 2, 
+            frustumSize / 2, 
+            frustumSize / -2, 
+            1, 
+            1000
+        );
+        // Position the camera to get a nice diagonal view
+        camera.position.set(10, 10, 10);
+        camera.lookAt(scene.position); // Look at the center of the scene
+        scene.add(camera);
+
+        // === LIGHTING ===
+        // Ambient light to softly illuminate the whole scene
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        // Directional light to create shadows and highlights
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 5);
+        scene.add(directionalLight);
+
+        // === OBJECTS (CUBES) ===
+        const cubeGroup = new THREE.Group(); // Use a group to rotate both cubes together
+        
+        // Define geometry and material once to reuse
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        const material = new THREE.MeshStandardMaterial({
+            color: 0x6a0dad, // A nice purple color
+            metalness: 0.3,
+            roughness: 0.4
+        });
+
+        // Create and position the first cube
+        const cube1 = new THREE.Mesh(geometry, material);
+        cube1.position.x = -2.5;
+        cube1.userData.name = 'Memory Cube 1'; // Add custom data
+        cubeGroup.add(cube1);
+
+        // Create and position the second cube
+        const cube2 = new THREE.Mesh(geometry, material);
+        cube2.position.x = 2.5;
+        cube2.userData.name = 'Memory Cube 2';
+        cubeGroup.add(cube2);
+
+        scene.add(cubeGroup);
+        const cubes = [cube1, cube2]; // An array for easy access in raycasting
+
+        // === HOVER INTERACTION (RAYCASTING) ===
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const infoCard = document.getElementById('info-card');
+        let hoveredObject = null;
+
+        function onMouseMove(event) {
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        // === ANIMATION LOOP ===
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Raycasting logic
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(cubes);
+
+            if (intersects.length > 0) {
+                const firstIntersect = intersects[0].object;
+
+                // If we are hovering over a new object
+                if (hoveredObject !== firstIntersect) {
+                    hoveredObject = firstIntersect;
+
+                    // Calculate screen position of the cube
+                    const screenPosition = toScreenPosition(hoveredObject, camera);
+
+                    // Position and show the card
+                    infoCard.style.left = `${screenPosition.x + 20}px`;
+                    infoCard.style.top = `${screenPosition.y - 20}px`;
+                    infoCard.style.display = 'block';
+                    // Use a timeout to allow the display property to apply before changing opacity
+                    setTimeout(() => {
+                        infoCard.style.opacity = '1';
+                    }, 10);
+                } else {
+                    // Update position even if it's the same object
+                    const screenPosition = toScreenPosition(hoveredObject, camera);
+                    infoCard.style.left = `${screenPosition.x + 20}px`;
+                    infoCard.style.top = `${screenPosition.y - 20}px`;
+                }
+            } else {
+                // If we are no longer hovering over any object
+                if (hoveredObject) {
+                    hoveredObject = null;
+                    infoCard.style.opacity = '0';
+                    // Hide the card after the transition ends
+                    setTimeout(() => {
+                        if (!hoveredObject) { // Check again in case we've hovered over something else quickly
+                             infoCard.style.display = 'none';
+                        }
+                    }, 300); // Match transition duration
+                }
+            }
+
+            // Render the scene
+            renderer.render(scene, camera);
+        }
+
+        // === UTILITY FUNCTION ===
+        // Converts a 3D position to a 2D screen position
+        function toScreenPosition(obj, cam) {
+            const vector = new THREE.Vector3();
+            obj.getWorldPosition(vector); // Get the world position of the object
+            vector.project(cam); // Project the 3D point into 2D camera space (-1 to 1)
+
+            // Convert to pixel coordinates
+            vector.x = Math.round((0.5 + vector.x / 2) * window.innerWidth);
+            vector.y = Math.round((0.5 - vector.y / 2) * window.innerHeight);
+
+            return {
+                x: vector.x,
+                y: vector.y
+            };
+        }
+
+        // === EVENT LISTENERS ===
+        window.addEventListener('mousemove', onMouseMove);
+
+        // Handle window resizing
+        window.addEventListener('resize', () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // Update camera aspect ratio
+            const newAspect = width / height;
+            camera.left = frustumSize * newAspect / -2;
+            camera.right = frustumSize * newAspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+
+            // Update renderer size
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        });
+
+        // Start the animation
+        animate();
+    </script>
+
+</body>
+</html>

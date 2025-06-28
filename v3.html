@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Axonometric Cubes</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .hover-card {
+            position: absolute;
+            width: 200px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .hover-card.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .hover-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(255, 255, 255, 0.1) 0%, 
+                rgba(255, 255, 255, 0.05) 50%, 
+                rgba(255, 255, 255, 0.1) 100%);
+            border-radius: 12px;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="hoverCard" class="hover-card">Memory</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2c3e50);
+        
+        // Camera setup for axonometric view
+        const camera = new THREE.OrthographicCamera(
+            window.innerWidth / -200,
+            window.innerWidth / 200,
+            window.innerHeight / 200,
+            window.innerHeight / -200,
+            0.1,
+            1000
+        );
+        
+        // Position camera for axonometric view
+        camera.position.set(5, 5, 5);
+        camera.lookAt(0, 0, 0);
+        
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('container').appendChild(renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+        
+        // Create cube geometry and materials
+        const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+        
+        const cubeMaterial1 = new THREE.MeshLambertMaterial({ 
+            color: 0x3498db,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        const cubeMaterial2 = new THREE.MeshLambertMaterial({ 
+            color: 0xe74c3c,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        // Create cubes
+        const cube1 = new THREE.Mesh(cubeGeometry, cubeMaterial1);
+        cube1.position.set(-3, 0, 0);
+        cube1.castShadow = true;
+        cube1.receiveShadow = true;
+        scene.add(cube1);
+        
+        const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial2);
+        cube2.position.set(3, 0, 0);
+        cube2.castShadow = true;
+        cube2.receiveShadow = true;
+        scene.add(cube2);
+        
+        // Add ground plane
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x34495e,
+            transparent: true,
+            opacity: 0.7
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -1;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        // Raycaster for mouse interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        // Get hover card element
+        const hoverCard = document.getElementById('hoverCard');
+        
+        // Mouse move handler
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects([cube1, cube2]);
+            
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                const intersectionPoint = intersects[0].point;
+                
+                // Convert 3D position to screen coordinates
+                const screenPosition = intersectionPoint.clone();
+                screenPosition.project(camera);
+                
+                const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
+                
+                // Position card next to the cube
+                hoverCard.style.left = (x + 50) + 'px';
+                hoverCard.style.top = (y - 60) + 'px';
+                hoverCard.classList.add('visible');
+                
+                // Highlight the intersected cube
+                intersectedObject.material.emissive.setHex(0x222222);
+                
+                // Reset other cube
+                const otherCube = intersectedObject === cube1 ? cube2 : cube1;
+                otherCube.material.emissive.setHex(0x000000);
+                
+            } else {
+                hoverCard.classList.remove('visible');
+                cube1.material.emissive.setHex(0x000000);
+                cube2.material.emissive.setHex(0x000000);
+            }
+        }
+        
+        // Add event listeners
+        window.addEventListener('mousemove', onMouseMove);
+        
+        // Handle window resize
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = window.innerWidth / -200;
+            camera.right = window.innerWidth / 200;
+            camera.top = window.innerHeight / 200;
+            camera.bottom = window.innerHeight / -200;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        window.addEventListener('resize', onWindowResize);
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Gentle rotation for visual interest
+            cube1.rotation.x += 0.005;
+            cube1.rotation.y += 0.005;
+            
+            cube2.rotation.x += 0.007;
+            cube2.rotation.y += 0.003;
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
