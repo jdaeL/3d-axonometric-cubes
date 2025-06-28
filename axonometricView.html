@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Axonometric Three.js Scene</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .hover-card {
+            position: absolute;
+            width: 200px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .hover-card.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .controls button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 12px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .controls button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            z-index: 200;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="hoverCard" class="hover-card">Memory</div>
+        <div class="controls">
+            <div>Axonometric Views:</div>
+            <button onclick="setIsometricView()">Isometric</button>
+            <button onclick="setDimetricView()">Dimetric</button>
+            <button onclick="setTrimetricView()">Trimetric</button>
+            <br>
+            <button onclick="toggleGrid()">Toggle Grid</button>
+            <button onclick="toggleWireframe()">Toggle Wireframe</button>
+        </div>
+        <div class="info">
+            Axonometric View | Hover over buildings to interact
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+        
+        // isometric camera setup (35.26° elevation, 45° azimuth)
+        const frustumSize = 12;
+        const aspect = window.innerWidth / window.innerHeight;
+        const camera = new THREE.OrthographicCamera(
+            -frustumSize * aspect / 2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            -frustumSize / 2,
+            0.1,
+            1000
+        );
+        
+        // Set isometric view
+        function setIsometricView() {
+            const distance = 10;
+            camera.position.set(
+                distance * Math.cos(Math.PI / 4) * Math.cos(Math.atan(1/Math.sqrt(2))),
+                distance * Math.sin(Math.atan(1/Math.sqrt(2))),
+                distance * Math.sin(Math.PI / 4) * Math.cos(Math.atan(1/Math.sqrt(2)))
+            );
+            camera.lookAt(0, 0, 0);
+        }
+        
+        function setDimetricView() {
+            camera.position.set(8, 6, 8);
+            camera.lookAt(0, 0, 0);
+        }
+        
+        function setTrimetricView() {
+            camera.position.set(7, 5, 9);
+            camera.lookAt(0, 0, 0);
+        }
+        
+        // Initialize with isometric view
+        setIsometricView();
+        
+        // Enhanced renderer setup
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true, 
+            alpha: true,
+            powerPreference: "high-performance"
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.getElementById('container').appendChild(renderer.domElement);
+        
+        // Enhanced lighting system
+        const ambientLight = new THREE.AmbientLight(0x4a5568, 0.4);
+        scene.add(ambientLight);
+        
+        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight1.position.set(10, 10, 5);
+        directionalLight1.castShadow = true;
+        directionalLight1.shadow.mapSize.width = 4096;
+        directionalLight1.shadow.mapSize.height = 4096;
+        directionalLight1.shadow.camera.near = 0.1;
+        directionalLight1.shadow.camera.far = 50;
+        directionalLight1.shadow.camera.left = -20;
+        directionalLight1.shadow.camera.right = 20;
+        directionalLight1.shadow.camera.top = 20;
+        directionalLight1.shadow.camera.bottom = -20;
+        scene.add(directionalLight1);
+        
+        // Secondary light for better depth
+        const directionalLight2 = new THREE.DirectionalLight(0x87ceeb, 0.3);
+        directionalLight2.position.set(-5, 8, -5);
+        scene.add(directionalLight2);
+        
+        // Grid system
+        const gridHelper = new THREE.GridHelper(20, 20, 0x4a5568, 0x2d3748);
+        gridHelper.position.y = -1;
+        scene.add(gridHelper);
+        
+        // Coordinate axes
+        const axesHelper = new THREE.AxesHelper(3);
+        axesHelper.position.set(-8, -0.9, -8);
+        scene.add(axesHelper);
+        
+        // Enhanced ground plane with texture-like appearance
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x2d3748,
+            transparent: true,
+            opacity: 0.8
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -1;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        // Enhanced building materials
+        const buildingMaterial1 = new THREE.MeshPhongMaterial({ 
+            color: 0x3182ce,
+            shininess: 30,
+            specular: 0x1a365d,
+            transparent: true,
+            opacity: 0.95
+        });
+        
+        const buildingMaterial2 = new THREE.MeshPhongMaterial({ 
+            color: 0xe53e3e,
+            shininess: 30,
+            specular: 0x9c1a1a,
+            transparent: true,
+            opacity: 0.95
+        });
+        
+        // Create buildings with better proportions
+        const buildingGeometry = new THREE.BoxGeometry(2, 2, 2);
+        
+        // Building 1 - positioned on grid
+        const building1 = new THREE.Mesh(buildingGeometry, buildingMaterial1);
+        building1.position.set(-4, 0, 0); // Grid-aligned position
+        building1.castShadow = true;
+        building1.receiveShadow = true;
+        scene.add(building1);
+        
+        // Building 2 - positioned on grid
+        const building2 = new THREE.Mesh(buildingGeometry, buildingMaterial2);
+        building2.position.set(4, 0, 0); // Grid-aligned position
+        building2.castShadow = true;
+        building2.receiveShadow = true;
+        scene.add(building2);
+        
+        // Wireframe toggle functionality
+        let wireframeMode = false;
+        const wireframeMaterial1 = new THREE.MeshBasicMaterial({ 
+            color: 0x3182ce, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.7
+        });
+        const wireframeMaterial2 = new THREE.MeshBasicMaterial({ 
+            color: 0xe53e3e, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        function toggleWireframe() {
+            wireframeMode = !wireframeMode;
+            building1.material = wireframeMode ? wireframeMaterial1 : buildingMaterial1;
+            building2.material = wireframeMode ? wireframeMaterial2 : buildingMaterial2;
+        }
+        
+        function toggleGrid() {
+            gridHelper.visible = !gridHelper.visible;
+            axesHelper.visible = !axesHelper.visible;
+        }
+        
+        // Animation and interaction system
+        const originalScale1 = building1.scale.clone();
+        const originalScale2 = building2.scale.clone();
+        const originalPosition1 = building1.position.clone();
+        const originalPosition2 = building2.position.clone();
+        
+        let targetScale1 = originalScale1.clone();
+        let targetScale2 = originalScale2.clone();
+        let targetPosition1 = originalPosition1.clone();
+        let targetPosition2 = originalPosition2.clone();
+        
+        // Raycaster for mouse interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const hoverCard = document.getElementById('hoverCard');
+        
+        // Enhanced mouse interaction
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects([building1, building2]);
+            
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                const intersectionPoint = intersects[0].point;
+                
+                // Convert 3D position to screen coordinates
+                const screenPosition = intersectionPoint.clone();
+                screenPosition.project(camera);
+                
+                const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
+                
+                hoverCard.style.left = (x + 50) + 'px';
+                hoverCard.style.top = (y - 60) + 'px';
+                hoverCard.classList.add('visible');
+                
+                // Enhanced building transformation
+                if (intersectedObject === building1) {
+                    targetScale1.set(1, 3, 1); // More dramatic height increase
+                    targetPosition1.set(originalPosition1.x, originalPosition1.y + 2, originalPosition1.z);
+                    
+                    // Reset building2
+                    targetScale2.copy(originalScale2);
+                    targetPosition2.copy(originalPosition2);
+                } else {
+                    targetScale2.set(1, 3, 1);
+                    targetPosition2.set(originalPosition2.x, originalPosition2.y + 2, originalPosition2.z);
+                    
+                    // Reset building1
+                    targetScale1.copy(originalScale1);
+                    targetPosition1.copy(originalPosition1);
+                }
+                
+            } else {
+                hoverCard.classList.remove('visible');
+                
+                // Reset both buildings
+                targetScale1.copy(originalScale1);
+                targetScale2.copy(originalScale2);
+                targetPosition1.copy(originalPosition1);
+                targetPosition2.copy(originalPosition2);
+            }
+        }
+        
+        window.addEventListener('mousemove', onMouseMove);
+        
+        // Enhanced window resize handling
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -frustumSize * aspect / 2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = -frustumSize / 2;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        window.addEventListener('resize', onWindowResize);
+        
+        // Enhanced animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Smooth interpolation with easing
+            const lerpFactor = 0.08;
+            
+            building1.scale.lerp(targetScale1, lerpFactor);
+            building1.position.lerp(targetPosition1, lerpFactor);
+            
+            building2.scale.lerp(targetScale2, lerpFactor);
+            building2.position.lerp(targetPosition2, lerpFactor);
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+        
+        // Make functions global for button access
+        window.setIsometricView = setIsometricView;
+        window.setDimetricView = setDimetricView;
+        window.setTrimetricView = setTrimetricView;
+        window.toggleGrid = toggleGrid;
+        window.toggleWireframe = toggleWireframe;
+    </script>
+</body>
+</html>
