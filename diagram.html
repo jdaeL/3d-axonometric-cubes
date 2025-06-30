@@ -194,15 +194,15 @@
             1000
         );
         
-        // Set isometric view
+        // Set isometric view from the other side
         function setIsometricView() {
             const distance = 22;
             camera.position.set(
+                -distance * 0.7,  // Flipped X
                 distance * 0.7,
-                distance * 0.7,
-                distance * 0.7
+                -distance * 0.7   // Flipped Z
             );
-            camera.lookAt(-1, 0, -1); // Focus on center of the architecture
+            camera.lookAt(-1, 0, -1);
         }
         
         function setTopView() {
@@ -255,8 +255,20 @@
             transparent: true
         });
         
+        // Enhanced hover material with glow effect
         const hoverMaterial = new THREE.MeshLambertMaterial({ 
-            color: 0x1e293b,
+            color: 0x3b82f6,
+            emissive: 0x1e40af,
+            emissiveIntensity: 0.3,
+            opacity: 1,
+            transparent: false
+        });
+        
+        // Glowing selected material
+        const selectedMaterial = new THREE.MeshLambertMaterial({
+            color: 0x10b981,
+            emissive: 0x059669,
+            emissiveIntensity: 0.5,
             opacity: 1,
             transparent: false
         });
@@ -299,6 +311,8 @@
         const platforms = {};
         const components = [];
         const originalMaterials = new Map();
+        const targetScales = new Map();
+        const targetPositions = new Map();
         
         Object.entries(architectureData).forEach(([layerName, layerData]) => {
             // Create platform
@@ -326,10 +340,13 @@
                     name: comp.name,
                     layer: layerName,
                     info: comp.info,
-                    originalY: 0.75
+                    originalY: 0.75,
+                    originalScale: { x: 1, y: 1, z: 1 }
                 };
                 
                 originalMaterials.set(component, component.material);
+                targetScales.set(component, new THREE.Vector3(1, 1, 1));
+                targetPositions.set(component, new THREE.Vector3(comp.x, 0.75, comp.z));
                 components.push(component);
                 scene.add(component);
             });
