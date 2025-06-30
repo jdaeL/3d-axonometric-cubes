@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hospital Calc - diagram axonometric view</title>
+    <title>Hospital Calc - Diagram Axonometric View</title>
     <style>
         body {
             margin: 0;
@@ -151,7 +151,6 @@
             <h3>Architecture Views</h3>
             <button onclick="setIsometricView()">Isometric</button>
             <button onclick="setTopView()">Top View</button>
-            <button onclick="setSideView()">Side View</button>
             <br>
             <button onclick="toggleConnections()" class="secondary">Toggle Connections</button>
             <button onclick="toggleLabels()" class="secondary">Toggle Labels</button>
@@ -184,7 +183,7 @@
         scene.background = new THREE.Color(0xf1f5f9);
         
         // Camera setup for axonometric view
-        const frustumSize = 16;
+        const frustumSize = 18;
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.OrthographicCamera(
             -frustumSize * aspect / 2,
@@ -197,7 +196,7 @@
         
         // Set isometric view
         function setIsometricView() {
-            const distance = 20;
+            const distance = 25;
             camera.position.set(
                 distance * 0.7,
                 distance * 0.7,
@@ -207,12 +206,7 @@
         }
         
         function setTopView() {
-            camera.position.set(0, 25, 0);
-            camera.lookAt(0, 0, 0);
-        }
-        
-        function setSideView() {
-            camera.position.set(25, 10, 0);
+            camera.position.set(0, 30, 0);
             camera.lookAt(0, 0, 0);
         }
         
@@ -267,36 +261,36 @@
             transparent: false
         });
         
-        // Architecture data
+        // Fixed architecture data based on actual diagram flow
         const architectureData = {
             userInterface: {
-                platform: { x: -8, z: 4, width: 8, depth: 6 },
+                platform: { x: -2, z: 8, width: 10, depth: 4 },
                 components: [
-                    { name: "Input Tables", x: -10, z: 6, info: "Data input interface for user data entry and manipulation" },
-                    { name: "Pie Chart", x: -8, z: 6, info: "Visual representation of data in circular chart format" },
-                    { name: "Year Selector", x: -6, z: 6, info: "Time-based filtering component for temporal data" },
-                    { name: "Bar Chart", x: -10, z: 2, info: "Comparative data visualization using rectangular bars" },
-                    { name: "Donut Chart", x: -8, z: 2, info: "Circular chart with center void for additional information" }
+                    { name: "Input Tables", x: -6, z: 8, info: "Data input interface for user data entry and manipulation" },
+                    { name: "Pie Chart", x: -3, z: 8, info: "Visual representation of data in circular chart format" },
+                    { name: "Year Selector", x: 0, z: 8, info: "Time-based filtering component for temporal data" },
+                    { name: "Bar Chart", x: -6, z: 6, info: "Comparative data visualization using rectangular bars" },
+                    { name: "Donut Chart", x: -3, z: 6, info: "Circular chart with center void for additional information" }
                 ]
             },
             businessLogic: {
-                platform: { x: -2, z: -2, width: 6, depth: 4 },
+                platform: { x: -2, z: 2, width: 6, depth: 4 },
                 components: [
-                    { name: "Excel Calculator", x: -4, z: -2, info: "Spreadsheet-based calculation engine for complex formulas" },
-                    { name: "Web Calculator", x: 0, z: -2, info: "Browser-based calculation service for real-time processing" }
+                    { name: "Excel Calculator", x: -4, z: 2, info: "Spreadsheet-based calculation engine for complex formulas" },
+                    { name: "Web Calculator", x: 0, z: 2, info: "Browser-based calculation service for real-time processing" }
                 ]
             },
             output: {
-                platform: { x: 4, z: 2, width: 4, depth: 3 },
+                platform: { x: 6, z: 2, width: 4, depth: 4 },
                 components: [
-                    { name: "Output Tables", x: 4, z: 2, info: "Processed data display in structured table format" }
+                    { name: "Output Tables", x: 6, z: 2, info: "Processed data display in structured table format" }
                 ]
             },
             database: {
-                platform: { x: 8, z: -4, width: 6, depth: 4 },
+                platform: { x: 2, z: -4, width: 8, depth: 4 },
                 components: [
-                    { name: "AirTable", x: 6, z: -4, info: "Cloud-based database with API integration capabilities" },
-                    { name: "Excel", x: 10, z: -4, info: "Traditional spreadsheet storage and processing system" }
+                    { name: "AirTable", x: 0, z: -4, info: "Cloud-based database with API integration capabilities" },
+                    { name: "Excel", x: 4, z: -4, info: "Traditional spreadsheet storage and processing system" }
                 ]
             }
         };
@@ -321,9 +315,9 @@
             
             // Create components
             layerData.components.forEach(comp => {
-                const componentGeometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+                const componentGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
                 const component = new THREE.Mesh(componentGeometry, componentMaterial.clone());
-                component.position.set(comp.x, 0.6, comp.z);
+                component.position.set(comp.x, 0.75, comp.z);
                 component.castShadow = true;
                 component.receiveShadow = true;
                 
@@ -332,7 +326,7 @@
                     name: comp.name,
                     layer: layerName,
                     info: comp.info,
-                    originalY: 0.6
+                    originalY: 0.75
                 };
                 
                 originalMaterials.set(component, component.material);
@@ -341,7 +335,7 @@
             });
         });
         
-        // Connection lines (optional)
+        // Connection lines following the actual diagram flow
         const connectionLines = new THREE.Group();
         scene.add(connectionLines);
         
@@ -354,22 +348,22 @@
                 transparent: true 
             });
             
-            // Define connections based on architecture
+            // Define connections based on actual architecture flow
             const connections = [
-                // UI to Business Logic
-                { from: [-10, 0.6, 6], to: [-4, 0.6, -2] },
-                { from: [-8, 0.6, 6], to: [-4, 0.6, -2] },
-                { from: [-6, 0.6, 6], to: [0, 0.6, -2] },
-                { from: [-10, 0.6, 2], to: [-4, 0.6, -2] },
-                { from: [-8, 0.6, 2], to: [0, 0.6, -2] },
+                // UI to Business Logic (all UI components feed into calculators)
+                { from: [-6, 0.75, 8], to: [-4, 0.75, 2] }, // Input Tables → Excel Calc
+                { from: [-3, 0.75, 8], to: [-4, 0.75, 2] }, // Pie Chart → Excel Calc
+                { from: [0, 0.75, 8], to: [0, 0.75, 2] },   // Year Selector → Web Calc
+                { from: [-6, 0.75, 6], to: [-4, 0.75, 2] }, // Bar Chart → Excel Calc
+                { from: [-3, 0.75, 6], to: [0, 0.75, 2] },  // Donut Chart → Web Calc
                 
                 // Business Logic to Output
-                { from: [-4, 0.6, -2], to: [4, 0.6, 2] },
-                { from: [0, 0.6, -2], to: [4, 0.6, 2] },
+                { from: [-4, 0.75, 2], to: [6, 0.75, 2] },  // Excel Calc → Output
+                { from: [0, 0.75, 2], to: [6, 0.75, 2] },   // Web Calc → Output
                 
                 // Output to Database
-                { from: [4, 0.6, 2], to: [6, 0.6, -4] },
-                { from: [4, 0.6, 2], to: [10, 0.6, -4] }
+                { from: [6, 0.75, 2], to: [0, 0.75, -4] },  // Output → AirTable
+                { from: [6, 0.75, 2], to: [4, 0.75, -4] }   // Output → Excel
             ];
             
             connections.forEach(conn => {
@@ -450,7 +444,6 @@
         }
         
         function toggleLabels() {
-            // This could add 3D text labels if needed
             console.log('Labels toggle - could implement 3D text here');
         }
         
@@ -478,7 +471,6 @@
         // Make functions global
         window.setIsometricView = setIsometricView;
         window.setTopView = setTopView;
-        window.setSideView = setSideView;
         window.toggleConnections = toggleConnections;
         window.toggleLabels = toggleLabels;
     </script>
