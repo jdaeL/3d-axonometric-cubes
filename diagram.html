@@ -183,7 +183,7 @@
         scene.background = new THREE.Color(0xf1f5f9);
         
         // Camera setup for axonometric view
-        const frustumSize = 18;
+        const frustumSize = 16;
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.OrthographicCamera(
             -frustumSize * aspect / 2,
@@ -196,18 +196,18 @@
         
         // Set isometric view
         function setIsometricView() {
-            const distance = 25;
+            const distance = 22;
             camera.position.set(
                 distance * 0.7,
                 distance * 0.7,
                 distance * 0.7
             );
-            camera.lookAt(0, 0, 0);
+            camera.lookAt(-1, 0, -1); // Focus on center of the architecture
         }
         
         function setTopView() {
-            camera.position.set(0, 30, 0);
-            camera.lookAt(0, 0, 0);
+            camera.position.set(-1, 25, -1);
+            camera.lookAt(-1, 0, -1);
         }
         
         setIsometricView();
@@ -261,36 +261,36 @@
             transparent: false
         });
         
-        // Fixed architecture data based on actual diagram flow
+        // Fixed architecture data to match exact diagram positioning
         const architectureData = {
             userInterface: {
-                platform: { x: -2, z: 8, width: 10, depth: 4 },
+                platform: { x: -6, z: 4, width: 8, depth: 4 },
                 components: [
-                    { name: "Input Tables", x: -6, z: 8, info: "Data input interface for user data entry and manipulation" },
-                    { name: "Pie Chart", x: -3, z: 8, info: "Visual representation of data in circular chart format" },
-                    { name: "Year Selector", x: 0, z: 8, info: "Time-based filtering component for temporal data" },
-                    { name: "Bar Chart", x: -6, z: 6, info: "Comparative data visualization using rectangular bars" },
-                    { name: "Donut Chart", x: -3, z: 6, info: "Circular chart with center void for additional information" }
+                    { name: "Input Tables", x: -8, z: 5, info: "Data input interface for user data entry and manipulation" },
+                    { name: "Pie Chart", x: -6, z: 5, info: "Visual representation of data in circular chart format" },
+                    { name: "Year Selector", x: -4, z: 5, info: "Time-based filtering component for temporal data" },
+                    { name: "Bar Chart", x: -8, z: 3, info: "Comparative data visualization using rectangular bars" },
+                    { name: "Donut Chart", x: -6, z: 3, info: "Circular chart with center void for additional information" }
                 ]
             },
             businessLogic: {
-                platform: { x: -2, z: 2, width: 6, depth: 4 },
+                platform: { x: -6, z: -1, width: 6, depth: 3 },
                 components: [
-                    { name: "Excel Calculator", x: -4, z: 2, info: "Spreadsheet-based calculation engine for complex formulas" },
-                    { name: "Web Calculator", x: 0, z: 2, info: "Browser-based calculation service for real-time processing" }
+                    { name: "Excel Calculator", x: -7.5, z: -1, info: "Spreadsheet-based calculation engine for complex formulas" },
+                    { name: "Web Calculator", x: -4.5, z: -1, info: "Browser-based calculation service for real-time processing" }
                 ]
             },
             output: {
-                platform: { x: 6, z: 2, width: 4, depth: 4 },
+                platform: { x: 4, z: -1, width: 4, depth: 3 },
                 components: [
-                    { name: "Output Tables", x: 6, z: 2, info: "Processed data display in structured table format" }
+                    { name: "Output Tables", x: 4, z: -1, info: "Processed data display in structured table format" }
                 ]
             },
             database: {
-                platform: { x: 2, z: -4, width: 8, depth: 4 },
+                platform: { x: 4, z: -6, width: 6, depth: 3 },
                 components: [
-                    { name: "AirTable", x: 0, z: -4, info: "Cloud-based database with API integration capabilities" },
-                    { name: "Excel", x: 4, z: -4, info: "Traditional spreadsheet storage and processing system" }
+                    { name: "AirTable", x: 2, z: -6, info: "Cloud-based database with API integration capabilities" },
+                    { name: "Excel", x: 6, z: -6, info: "Traditional spreadsheet storage and processing system" }
                 ]
             }
         };
@@ -348,22 +348,22 @@
                 transparent: true 
             });
             
-            // Define connections based on actual architecture flow
+            // Define connections based on exact diagram positioning
             const connections = [
-                // UI to Business Logic (all UI components feed into calculators)
-                { from: [-6, 0.75, 8], to: [-4, 0.75, 2] }, // Input Tables → Excel Calc
-                { from: [-3, 0.75, 8], to: [-4, 0.75, 2] }, // Pie Chart → Excel Calc
-                { from: [0, 0.75, 8], to: [0, 0.75, 2] },   // Year Selector → Web Calc
-                { from: [-6, 0.75, 6], to: [-4, 0.75, 2] }, // Bar Chart → Excel Calc
-                { from: [-3, 0.75, 6], to: [0, 0.75, 2] },  // Donut Chart → Web Calc
+                // UI to Business Logic (UI above calculators)
+                { from: [-8, 0.75, 5], to: [-7.5, 0.75, -1] }, // Input Tables → Excel Calc
+                { from: [-6, 0.75, 5], to: [-7.5, 0.75, -1] }, // Pie Chart → Excel Calc
+                { from: [-4, 0.75, 5], to: [-4.5, 0.75, -1] }, // Year Selector → Web Calc
+                { from: [-8, 0.75, 3], to: [-7.5, 0.75, -1] }, // Bar Chart → Excel Calc
+                { from: [-6, 0.75, 3], to: [-4.5, 0.75, -1] }, // Donut Chart → Web Calc
                 
-                // Business Logic to Output
-                { from: [-4, 0.75, 2], to: [6, 0.75, 2] },  // Excel Calc → Output
-                { from: [0, 0.75, 2], to: [6, 0.75, 2] },   // Web Calc → Output
+                // Business Logic to Output (calculators to output, same level)
+                { from: [-7.5, 0.75, -1], to: [4, 0.75, -1] }, // Excel Calc → Output
+                { from: [-4.5, 0.75, -1], to: [4, 0.75, -1] }, // Web Calc → Output
                 
-                // Output to Database
-                { from: [6, 0.75, 2], to: [0, 0.75, -4] },  // Output → AirTable
-                { from: [6, 0.75, 2], to: [4, 0.75, -4] }   // Output → Excel
+                // Output to Database (output above database)
+                { from: [4, 0.75, -1], to: [2, 0.75, -6] },    // Output → AirTable
+                { from: [4, 0.75, -1], to: [6, 0.75, -6] }     // Output → Excel
             ];
             
             connections.forEach(conn => {
