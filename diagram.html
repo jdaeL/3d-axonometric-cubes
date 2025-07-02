@@ -198,16 +198,16 @@
         function setIsometricView() {
             const distance = 22;
             camera.position.set(
-                -distance * 0.7,  // Flipped X
+                distance * 0.7,  // Flipped X
                 distance * 0.7,
-                -distance * 0.7   // Flipped Z
+                distance * 0.7   // Flipped Z
             );
-            camera.lookAt(-1, 0, -1);
+            camera.lookAt(-1, 0, 1); // Adjusted focus point for new layout
         }
         
         function setTopView() {
-            camera.position.set(-1, 25, -1);
-            camera.lookAt(-1, 0, -1);
+            camera.position.set(-1, 25, 1); // Adjusted for new layout center
+            camera.lookAt(-1, 0, 1);
         }
         
         setIsometricView();
@@ -273,36 +273,36 @@
             transparent: false
         });
         
-        // Fixed architecture data to match exact diagram positioning
+        // Architecture data to match diagram flow
         const architectureData = {
             userInterface: {
-                platform: { x: -6, z: 4, width: 8, depth: 4 },
+                platform: { x: -6, z: 6, width: 8, depth: 4 },
                 components: [
-                    { name: "Input Tables", x: -8, z: 5, info: "Data input interface for user data entry and manipulation" },
-                    { name: "Pie Chart", x: -6, z: 5, info: "Visual representation of data in circular chart format" },
-                    { name: "Year Selector", x: -4, z: 5, info: "Time-based filtering component for temporal data" },
-                    { name: "Bar Chart", x: -8, z: 3, info: "Comparative data visualization using rectangular bars" },
-                    { name: "Donut Chart", x: -6, z: 3, info: "Circular chart with center void for additional information" }
+                    { name: "Input Tables", x: -8, z: 7, info: "Data input interface for user data entry and manipulation" },
+                    { name: "Pie Chart", x: -6, z: 7, info: "Visual representation of data in circular chart format" },
+                    { name: "Year Selector", x: -4, z: 7, info: "Time-based filtering component for temporal data" },
+                    { name: "Bar Chart", x: -8, z: 5, info: "Comparative data visualization using rectangular bars" },
+                    { name: "Donut Chart", x: -6, z: 5, info: "Circular chart with center void for additional information" }
                 ]
             },
             businessLogic: {
-                platform: { x: -6, z: -1, width: 6, depth: 3 },
+                platform: { x: -6, z: 1, width: 6, depth: 3 },
                 components: [
-                    { name: "Excel Calculator", x: -7.5, z: -1, info: "Spreadsheet-based calculation engine for complex formulas" },
-                    { name: "Web Calculator", x: -4.5, z: -1, info: "Browser-based calculation service for real-time processing" }
+                    { name: "Excel Calculator", x: -7.5, z: 1, info: "Spreadsheet-based calculation engine for complex formulas" },
+                    { name: "Web Calculator", x: -4.5, z: 1, info: "Browser-based calculation service for real-time processing" }
                 ]
             },
             output: {
-                platform: { x: 4, z: -1, width: 4, depth: 3 },
+                platform: { x: 4, z: 1, width: 4, depth: 3 },
                 components: [
-                    { name: "Output Tables", x: 4, z: -1, info: "Processed data display in structured table format" }
+                    { name: "Output Tables", x: 4, z: 1, info: "Processed data display in structured table format" }
                 ]
             },
             database: {
-                platform: { x: 4, z: -6, width: 6, depth: 3 },
+                platform: { x: 4, z: -4, width: 6, depth: 3 },
                 components: [
-                    { name: "AirTable", x: 2, z: -6, info: "Cloud-based database with API integration capabilities" },
-                    { name: "Excel", x: 6, z: -6, info: "Traditional spreadsheet storage and processing system" }
+                    { name: "AirTable", x: 2, z: -4, info: "Cloud-based database with API integration capabilities" },
+                    { name: "Excel", x: 6, z: -4, info: "Traditional spreadsheet storage and processing system" }
                 ]
             }
         };
@@ -365,22 +365,22 @@
                 transparent: true 
             });
             
-            // Define connections based on exact diagram positioning
+            // Define connections based on corrected diagram positioning
             const connections = [
-                // UI to Business Logic (UI above calculators)
-                { from: [-8, 0.75, 5], to: [-7.5, 0.75, -1] }, // Input Tables → Excel Calc
-                { from: [-6, 0.75, 5], to: [-7.5, 0.75, -1] }, // Pie Chart → Excel Calc
-                { from: [-4, 0.75, 5], to: [-4.5, 0.75, -1] }, // Year Selector → Web Calc
-                { from: [-8, 0.75, 3], to: [-7.5, 0.75, -1] }, // Bar Chart → Excel Calc
-                { from: [-6, 0.75, 3], to: [-4.5, 0.75, -1] }, // Donut Chart → Web Calc
+                // UI to Business Logic (UI above calculators - downward flow)
+                { from: [-8, 0.75, 7], to: [-7.5, 0.75, 1] }, // Input Tables → Excel Calc
+                { from: [-6, 0.75, 7], to: [-7.5, 0.75, 1] }, // Pie Chart → Excel Calc
+                { from: [-4, 0.75, 7], to: [-4.5, 0.75, 1] }, // Year Selector → Web Calc
+                { from: [-8, 0.75, 5], to: [-7.5, 0.75, 1] }, // Bar Chart → Excel Calc
+                { from: [-6, 0.75, 5], to: [-4.5, 0.75, 1] }, // Donut Chart → Web Calc
                 
-                // Business Logic to Output (calculators to output, same level)
-                { from: [-7.5, 0.75, -1], to: [4, 0.75, -1] }, // Excel Calc → Output
-                { from: [-4.5, 0.75, -1], to: [4, 0.75, -1] }, // Web Calc → Output
+                // Business Logic to Output (calculators to output, same level - horizontal flow)
+                { from: [-7.5, 0.75, 1], to: [4, 0.75, 1] }, // Excel Calc → Output
+                { from: [-4.5, 0.75, 1], to: [4, 0.75, 1] }, // Web Calc → Output
                 
-                // Output to Database (output above database)
-                { from: [4, 0.75, -1], to: [2, 0.75, -6] },    // Output → AirTable
-                { from: [4, 0.75, -1], to: [6, 0.75, -6] }     // Output → Excel
+                // Output to Database (output above database - downward flow)
+                { from: [4, 0.75, 1], to: [2, 0.75, -4] },    // Output → AirTable
+                { from: [4, 0.75, 1], to: [6, 0.75, -4] }     // Output → Excel
             ];
             
             connections.forEach(conn => {
@@ -395,11 +395,12 @@
         
         createConnections();
         
-        // Interaction system
+        // Enhanced interaction system with smooth animations
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const infoCard = document.getElementById('infoCard');
         let hoveredComponent = null;
+        let selectedComponent = null;
         
         function onMouseMove(event) {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -411,47 +412,109 @@
             if (intersects.length > 0) {
                 const component = intersects[0].object;
                 
-                if (hoveredComponent !== component) {
-                    // Reset previous
-                    if (hoveredComponent) {
-                        hoveredComponent.material = originalMaterials.get(hoveredComponent);
-                        hoveredComponent.position.y = hoveredComponent.userData.originalY;
-                        hoveredComponent.scale.set(1, 1, 1);
+                if (hoveredComponent !== component && component !== selectedComponent) {
+                    // Reset previous hover
+                    if (hoveredComponent && hoveredComponent !== selectedComponent) {
+                        resetComponentState(hoveredComponent);
                     }
                     
-                    // Set new hover
+                    // Set new hover with glow effect
                     hoveredComponent = component;
-                    component.material = hoverMaterial;
-                    component.position.y = component.userData.originalY + 0.5;
-                    component.scale.set(1.1, 1.3, 1.1);
+                    component.material = hoverMaterial.clone();
+                    
+                    // Smooth hover animation
+                    targetScales.set(component, new THREE.Vector3(1.15, 1.15, 1.15));
+                    targetPositions.set(component, new THREE.Vector3(
+                        component.userData.originalPosition?.x || component.position.x,
+                        component.userData.originalY + 0.3,
+                        component.userData.originalPosition?.z || component.position.z
+                    ));
                     
                     // Update info card
-                    document.getElementById('cardLayer').textContent = component.userData.layer.replace(/([A-Z])/g, ' $1').trim();
-                    document.getElementById('cardTitle').textContent = component.userData.name;
-                    document.getElementById('cardDescription').textContent = component.userData.info;
-                    
-                    // Position card
-                    const screenPosition = component.position.clone();
-                    screenPosition.project(camera);
-                    const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
-                    const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
-                    
-                    infoCard.style.left = (x + 20) + 'px';
-                    infoCard.style.top = (y - 60) + 'px';
-                    infoCard.classList.add('visible');
+                    updateInfoCard(component);
                 }
             } else {
-                if (hoveredComponent) {
-                    hoveredComponent.material = originalMaterials.get(hoveredComponent);
-                    hoveredComponent.position.y = hoveredComponent.userData.originalY;
-                    hoveredComponent.scale.set(1, 1, 1);
+                if (hoveredComponent && hoveredComponent !== selectedComponent) {
+                    resetComponentState(hoveredComponent);
                     hoveredComponent = null;
                     infoCard.classList.remove('visible');
                 }
             }
         }
         
+        // Click to select with enhanced glow
+        function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(components);
+            
+            // Reset previous selection
+            if (selectedComponent) {
+                resetComponentState(selectedComponent);
+            }
+            
+            if (intersects.length > 0) {
+                const component = intersects[0].object;
+                selectedComponent = component;
+                
+                // Enhanced selected state with strong glow
+                component.material = selectedMaterial.clone();
+                component.material.emissiveIntensity = 0.7;
+                
+                // More dramatic selection animation
+                targetScales.set(component, new THREE.Vector3(1.3, 1.8, 1.3));
+                targetPositions.set(component, new THREE.Vector3(
+                    component.userData.originalPosition?.x || component.position.x,
+                    component.userData.originalY + 1.0,
+                    component.userData.originalPosition?.z || component.position.z
+                ));
+                
+                updateInfoCard(component);
+            } else {
+                selectedComponent = null;
+                infoCard.classList.remove('visible');
+            }
+        }
+        
+        function resetComponentState(component) {
+            component.material = originalMaterials.get(component);
+            targetScales.set(component, new THREE.Vector3(1, 1, 1));
+            targetPositions.set(component, new THREE.Vector3(
+                component.userData.originalPosition?.x || component.position.x,
+                component.userData.originalY,
+                component.userData.originalPosition?.z || component.position.z
+            ));
+        }
+        
+        function updateInfoCard(component) {
+            document.getElementById('cardLayer').textContent = component.userData.layer.replace(/([A-Z])/g, ' $1').trim();
+            document.getElementById('cardTitle').textContent = component.userData.name;
+            document.getElementById('cardDescription').textContent = component.userData.info;
+            
+            // Position card with improved positioning
+            const screenPosition = component.position.clone();
+            screenPosition.project(camera);
+            const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
+            
+            infoCard.style.left = Math.min(x + 20, window.innerWidth - 320) + 'px';
+            infoCard.style.top = Math.max(y - 60, 20) + 'px';
+            infoCard.classList.add('visible');
+        }
+        
+        // Store original positions
+        components.forEach(component => {
+            component.userData.originalPosition = {
+                x: component.position.x,
+                y: component.position.y,
+                z: component.position.z
+            };
+        });
+        
         window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('click', onMouseClick);
         
         // Control functions
         let connectionsVisible = true;
@@ -477,9 +540,37 @@
         
         window.addEventListener('resize', onWindowResize);
         
-        // Animation loop
+        // animation loop with smooth transitions
         function animate() {
             requestAnimationFrame(animate);
+            
+            // smooth interpolation for all components
+            const lerpFactor = 0.12; 
+            
+            components.forEach(component => {
+                const targetScale = targetScales.get(component);
+                const targetPosition = targetPositions.get(component);
+                
+                if (targetScale && targetPosition) {
+                    // Smooth scale interpolation
+                    component.scale.lerp(targetScale, lerpFactor);
+                    
+                    // Smooth position interpolation
+                    component.position.lerp(targetPosition, lerpFactor);
+                    
+                    // Add subtle floating animation for selected components
+                    if (component === selectedComponent) {
+                        const time = Date.now() * 0.002;
+                        component.position.y = targetPosition.y + Math.sin(time) * 0.1;
+                        
+                        // Pulsing glow effect
+                        if (component.material.emissiveIntensity !== undefined) {
+                            component.material.emissiveIntensity = 0.7 + Math.sin(time * 2) * 0.2;
+                        }
+                    }
+                }
+            });
+            
             renderer.render(scene, camera);
         }
         
