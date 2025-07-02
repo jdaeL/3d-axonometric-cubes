@@ -163,7 +163,7 @@
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background: #f59e0b;"></div>
-                <span>Business Logic Layer</span>
+                <span>Calculators Layer</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background: #8b5cf6;"></div>
@@ -194,19 +194,19 @@
             1000
         );
         
-        // Set isometric view from the other side
+        // Set isometric view
         function setIsometricView() {
             const distance = 22;
             camera.position.set(
-                distance * 0.7,  // Flipped X
                 distance * 0.7,
-                distance * 0.7   // Flipped Z
+                distance * 0.7,
+                distance * 0.7
             );
-            camera.lookAt(-1, 0, 1); // Adjusted focus point for new layout
+            camera.lookAt(-1, 0, 1);
         }
         
         function setTopView() {
-            camera.position.set(-1, 25, 1); // Adjusted for new layout center
+            camera.position.set(-1, 25, 1);
             camera.lookAt(-1, 0, 1);
         }
         
@@ -367,20 +367,20 @@
             
             // Define connections based on corrected diagram positioning
             const connections = [
-                // UI to Business Logic (UI above calculators - downward flow)
-                { from: [-8, 0.75, 7], to: [-7.5, 0.75, 1] }, // Input Tables → Excel Calc
-                { from: [-6, 0.75, 7], to: [-7.5, 0.75, 1] }, // Pie Chart → Excel Calc
-                { from: [-4, 0.75, 7], to: [-4.5, 0.75, 1] }, // Year Selector → Web Calc
-                { from: [-8, 0.75, 5], to: [-7.5, 0.75, 1] }, // Bar Chart → Excel Calc
-                { from: [-6, 0.75, 5], to: [-4.5, 0.75, 1] }, // Donut Chart → Web Calc
+                // UI to Business Logic (UI above calculators) - from platform level
+                { from: [-8, 0, 7], to: [-7.5, 0, 1] }, // Input Tables → Excel Calc
+                { from: [-6, 0, 7], to: [-7.5, 0, 1] }, // Pie Chart → Excel Calc
+                { from: [-4, 0, 7], to: [-4.5, 0, 1] }, // Year Selector → Web Calc
+                { from: [-8, 0, 5], to: [-7.5, 0, 1] }, // Bar Chart → Excel Calc
+                { from: [-6, 0, 5], to: [-4.5, 0, 1] }, // Donut Chart → Web Calc
                 
-                // Business Logic to Output (calculators to output, same level - horizontal flow)
-                { from: [-7.5, 0.75, 1], to: [4, 0.75, 1] }, // Excel Calc → Output
-                { from: [-4.5, 0.75, 1], to: [4, 0.75, 1] }, // Web Calc → Output
+                // Business Logic to Output (calculators to output, same level)
+                { from: [-7.5, 0, 1], to: [4, 0, 1] }, // Excel Calc → Output
+                { from: [-4.5, 0, 1], to: [4, 0, 1] }, // Web Calc → Output
                 
-                // Output to Database (output above database - downward flow)
-                { from: [4, 0.75, 1], to: [2, 0.75, -4] },    // Output → AirTable
-                { from: [4, 0.75, 1], to: [6, 0.75, -4] }     // Output → Excel
+                // Output to Database (output above database)
+                { from: [4, 0, 1], to: [2, 0, -4] },    // Output → AirTable
+                { from: [4, 0, 1], to: [6, 0, -4] }     // Output → Excel
             ];
             
             connections.forEach(conn => {
@@ -425,9 +425,9 @@
                     // Smooth hover animation
                     targetScales.set(component, new THREE.Vector3(1.15, 1.15, 1.15));
                     targetPositions.set(component, new THREE.Vector3(
-                        component.userData.originalPosition?.x || component.position.x,
+                        component.userData.originalPosition.x,
                         component.userData.originalY + 0.3,
-                        component.userData.originalPosition?.z || component.position.z
+                        component.userData.originalPosition.z
                     ));
                     
                     // Update info card
@@ -466,9 +466,9 @@
                 // More dramatic selection animation
                 targetScales.set(component, new THREE.Vector3(1.3, 1.8, 1.3));
                 targetPositions.set(component, new THREE.Vector3(
-                    component.userData.originalPosition?.x || component.position.x,
+                    component.userData.originalPosition.x,
                     component.userData.originalY + 1.0,
-                    component.userData.originalPosition?.z || component.position.z
+                    component.userData.originalPosition.z
                 ));
                 
                 updateInfoCard(component);
@@ -482,9 +482,9 @@
             component.material = originalMaterials.get(component);
             targetScales.set(component, new THREE.Vector3(1, 1, 1));
             targetPositions.set(component, new THREE.Vector3(
-                component.userData.originalPosition?.x || component.position.x,
+                component.userData.originalPosition.x,
                 component.userData.originalY,
-                component.userData.originalPosition?.z || component.position.z
+                component.userData.originalPosition.z
             ));
         }
         
@@ -504,7 +504,7 @@
             infoCard.classList.add('visible');
         }
         
-        // Store original positions
+        // Store original positions for all components
         components.forEach(component => {
             component.userData.originalPosition = {
                 x: component.position.x,
@@ -544,8 +544,8 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            // smooth interpolation for all components
-            const lerpFactor = 0.12; 
+            // Smooth interpolation for all components
+            const lerpFactor = 0.12;
             
             components.forEach(component => {
                 const targetScale = targetScales.get(component);
