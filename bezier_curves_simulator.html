@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bezier Curves Between Cubes</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+            margin-right: 10px;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button.active {
+            background: #ff6b6b;
+        }
+        
+        #info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <h3>Bezier Curve Controls</h3>
+            
+            <div class="control-group">
+                <label>Curve Height: <span id="heightValue">3</span></label>
+                <input type="range" id="curveHeight" min="0" max="8" value="3" step="0.1">
+            </div>
+            
+            <div class="control-group">
+                <label>Curve Segments: <span id="segmentsValue">50</span></label>
+                <input type="range" id="curveSegments" min="10" max="100" value="50" step="1">
+            </div>
+            
+            <div class="control-group">
+                <label>Animation Speed: <span id="speedValue">1</span></label>
+                <input type="range" id="animSpeed" min="0.1" max="3" value="1" step="0.1">
+            </div>
+            
+            <div class="control-group">
+                <button id="toggleAnimation">Start Animation</button>
+                <button id="addCurve">Add Random Curve</button>
+                <button id="clearCurves">Clear All</button>
+            </div>
+            
+            <div class="control-group">
+                <button id="viewTop">Top View</button>
+                <button id="viewSide">Side View</button>
+                <button id="viewDefault">Default View</button>
+            </div>
+        </div>
+        
+        <div id="info">
+            <strong>Bezier Curve Demo</strong><br>
+            • Drag to rotate camera<br>
+            • Scroll to zoom<br>
+            • Use controls to modify curves<br>
+            • Watch the sphere follow the curve!
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('container').appendChild(renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+        
+        // Create cubes
+        const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const cubeMaterial1 = new THREE.MeshLambertMaterial({ color: 0xff6b6b });
+        const cubeMaterial2 = new THREE.MeshLambertMaterial({ color: 0x4ecdc4 });
+        
+        const cube1 = new THREE.Mesh(cubeGeometry, cubeMaterial1);
+        const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial2);
+        
+        cube1.position.set(-5, 0, 0);
+        cube2.position.set(5, 0, 0);
+        cube1.castShadow = true;
+        cube2.castShadow = true;
+        
+        scene.add(cube1);
+        scene.add(cube2);
+        
+        // Create ground plane
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x333333,
+            transparent: true,
+            opacity: 0.3
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        // Bezier curve variables
+        let curves = [];
+        let curveLines = [];
+        let animatedObjects = [];
+        let animationProgress = 0;
+        let isAnimating = false;
+        let animationSpeed = 1;
+        
+        // Create initial Bezier curve
+        function createBezierCurve(start, end, height = 3, segments = 50) {
+            // Calculate control points for the curve
+            const midPoint = new THREE.Vector3(
+                (start.x + end.x) / 2,
+                (start.y + end.y) / 2 + height,
+                (start.z + end.z) / 2
+            );
+            
+            const control1 = new THREE.Vector3(
+                start.x + (midPoint.x - start.x) * 0.5,
+                start.y + height * 0.7,
+                start.z
+            );
+            
+            const control2 = new THREE.Vector3(
+                end.x + (midPoint.x - end.x) * 0.5,
+                end.y + height * 0.7,
+                end.z
+            );
+            
+            // Create cubic Bezier curve
+            const curve = new THREE.CubicBezierCurve3(start, control1, control2, end);
+            
+            // Create curve geometry
+            const points = curve.getPoints(segments);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            // Create curve material with gradient effect
+            const material = new THREE.LineBasicMaterial({
+                color: 0xffd700,
+                linewidth: 3,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            const curveLine = new THREE.Line(geometry, material);
+            scene.add(curveLine);
+            
+            // Create animated sphere
+            const sphereGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const sphereMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xffd700,
+                emissive: 0x444400
+            });
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.castShadow = true;
+            scene.add(sphere);
+            
+            // Store curve data
+            curves.push(curve);
+            curveLines.push(curveLine);
+            animatedObjects.push(sphere);
+            
+            return curve;
+        }
+        
+        // Create initial curve
+        createBezierCurve(cube1.position, cube2.position);
+        
+        // Camera controls (basic orbit controls)
+        let mouseDown = false;
+        let mouseX = 0;
+        let mouseY = 0;
+        let cameraDistance = 15;
+        let cameraAngleX = 0;
+        let cameraAngleY = 0;
+        
+        function updateCamera() {
+            camera.position.x = Math.cos(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+            camera.position.y = Math.sin(cameraAngleX) * cameraDistance;
+            camera.position.z = Math.sin(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+            camera.lookAt(0, 0, 0);
+        }
+        
+        // Initial camera position
+        cameraAngleX = 0.3;
+        cameraAngleY = 0.5;
+        updateCamera();
+        
+        // Mouse controls
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            mouseDown = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (!mouseDown) return;
+            
+            const deltaX = e.clientX - mouseX;
+            const deltaY = e.clientY - mouseY;
+            
+            cameraAngleY += deltaX * 0.01;
+            cameraAngleX += deltaY * 0.01;
+            
+            cameraAngleX = Math.max(-Math.PI/2, Math.min(Math.PI/2, cameraAngleX));
+            
+            updateCamera();
+            
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        
+        renderer.domElement.addEventListener('mouseup', () => {
+            mouseDown = false;
+        });
+        
+        renderer.domElement.addEventListener('wheel', (e) => {
+            cameraDistance += e.deltaY * 0.01;
+            cameraDistance = Math.max(5, Math.min(50, cameraDistance));
+            updateCamera();
+        });
+        
+        // Control handlers
+        document.getElementById('curveHeight').addEventListener('input', (e) => {
+            const height = parseFloat(e.target.value);
+            document.getElementById('heightValue').textContent = height;
+            recreateCurves();
+        });
+        
+        document.getElementById('curveSegments').addEventListener('input', (e) => {
+            const segments = parseInt(e.target.value);
+            document.getElementById('segmentsValue').textContent = segments;
+            recreateCurves();
+        });
+        
+        document.getElementById('animSpeed').addEventListener('input', (e) => {
+            animationSpeed = parseFloat(e.target.value);
+            document.getElementById('speedValue').textContent = animationSpeed;
+        });
+        
+        document.getElementById('toggleAnimation').addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            document.getElementById('toggleAnimation').textContent = isAnimating ? 'Stop Animation' : 'Start Animation';
+            document.getElementById('toggleAnimation').classList.toggle('active', isAnimating);
+        });
+        
+        document.getElementById('addCurve').addEventListener('click', () => {
+            const start = new THREE.Vector3(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 4,
+                (Math.random() - 0.5) * 10
+            );
+            const end = new THREE.Vector3(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 4,
+                (Math.random() - 0.5) * 10
+            );
+            
+            const height = parseFloat(document.getElementById('curveHeight').value);
+            const segments = parseInt(document.getElementById('curveSegments').value);
+            
+            createBezierCurve(start, end, height, segments);
+        });
+        
+        document.getElementById('clearCurves').addEventListener('click', () => {
+            // Remove all curves except the first one
+            for (let i = 1; i < curveLines.length; i++) {
+                scene.remove(curveLines[i]);
+                scene.remove(animatedObjects[i]);
+            }
+            curves = curves.slice(0, 1);
+            curveLines = curveLines.slice(0, 1);
+            animatedObjects = animatedObjects.slice(0, 1);
+        });
+        
+        // Camera view presets
+        document.getElementById('viewTop').addEventListener('click', () => {
+            cameraAngleX = Math.PI / 2 - 0.1;
+            cameraAngleY = 0;
+            updateCamera();
+        });
+        
+        document.getElementById('viewSide').addEventListener('click', () => {
+            cameraAngleX = 0;
+            cameraAngleY = Math.PI / 2;
+            updateCamera();
+        });
+        
+        document.getElementById('viewDefault').addEventListener('click', () => {
+            cameraAngleX = 0.3;
+            cameraAngleY = 0.5;
+            updateCamera();
+        });
+        
+        function recreateCurves() {
+            const height = parseFloat(document.getElementById('curveHeight').value);
+            const segments = parseInt(document.getElementById('curveSegments').value);
+            
+            // Clear existing curves
+            curveLines.forEach(line => scene.remove(line));
+            animatedObjects.forEach(obj => scene.remove(obj));
+            
+            curves = [];
+            curveLines = [];
+            animatedObjects = [];
+            
+            // Recreate main curve
+            createBezierCurve(cube1.position, cube2.position, height, segments);
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate cubes
+            cube1.rotation.x += 0.01;
+            cube1.rotation.y += 0.01;
+            cube2.rotation.x += 0.01;
+            cube2.rotation.y += 0.01;
+            
+            // Animate objects along curves
+            if (isAnimating) {
+                animationProgress += 0.005 * animationSpeed;
+                if (animationProgress > 1) animationProgress = 0;
+                
+                curves.forEach((curve, index) => {
+                    if (animatedObjects[index]) {
+                        const position = curve.getPoint(animationProgress);
+                        animatedObjects[index].position.copy(position);
+                        
+                        // Add some rotation to the animated object
+                        animatedObjects[index].rotation.x += 0.05;
+                        animatedObjects[index].rotation.y += 0.05;
+                    }
+                });
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
