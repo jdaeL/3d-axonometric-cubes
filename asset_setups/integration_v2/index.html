@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Calc - Enhanced Bézier Diagram</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .info-card {
+            position: absolute;
+            min-width: 220px;
+            max-width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            padding: 16px;
+            color: #1e293b;
+            font-size: 14px;
+            opacity: 0;
+            transform: scale(0.9) translateY(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .info-card.visible {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+        
+        .info-card .title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #0f172a;
+        }
+        
+        .info-card .layer {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-card .description {
+            color: #475569;
+            line-height: 1.4;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls h3 {
+            margin: 0 0 15px 0;
+            color: #1e293b;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .controls button {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            margin: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .controls button:hover {
+            background: #2563eb;
+        }
+        
+        .controls button.secondary {
+            background: #64748b;
+        }
+        
+        .controls button.secondary:hover {
+            background: #475569;
+        }
+        
+        .controls button.accent {
+            background: #10b981;
+        }
+        
+        .controls button.accent:hover {
+            background: #059669;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            font-size: 12px;
+            z-index: 200;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="infoCard" class="info-card">
+            <div class="layer" id="cardLayer"></div>
+            <div class="title" id="cardTitle"></div>
+            <div class="description" id="cardDescription"></div>
+        </div>
+        
+        <div class="controls">
+            <h3>Architecture Views</h3>
+            <button onclick="setIsometricView()">Isometric</button>
+            <button onclick="setTopView()">Top View</button>
+            <br>
+            <button onclick="toggleConnections()" class="secondary">Toggle Connections</button>
+            <button onclick="toggleLabels()" class="secondary">Toggle Labels</button>
+            <br>
+            <button onclick="toggleAnimatedFlow()" class="accent">Animated Flow</button>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #10b981;"></div>
+                <span>User Interface Layer</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f59e0b;"></div>
+                <span>Calculators Layer</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #8b5cf6;"></div>
+                <span>Output Layer</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #06b6d4;"></div>
+                <span>Database Layer</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf1f5f9);
+        
+        // Camera setup for axonometric view
+        const frustumSize = 16;
+        const aspect = window.innerWidth / window.innerHeight;
+        const camera = new THREE.OrthographicCamera(
+            -frustumSize * aspect / 2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            -frustumSize / 2,
+            0.1,
+            1000
+        );
+        
+        // Set isometric view
+        function setIsometricView() {
+            const distance = 22;
+            camera.position.set(
+                distance * 0.7,
+                distance * 0.7,
+                distance * 0.7
+            );
+            camera.lookAt(-1, 0, 1);
+        }
+        
+        function setTopView() {
+            camera.position.set(-1, 25, 1);
+            camera.lookAt(-1, 0, 1);
+        }
+        
+        setIsometricView();
+        
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true, 
+            alpha: true 
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.getElementById('container').appendChild(renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(20, 20, 10);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.1;
+        directionalLight.shadow.camera.far = 100;
+        directionalLight.shadow.camera.left = -30;
+        directionalLight.shadow.camera.right = 30;
+        directionalLight.shadow.camera.top = 30;
+        directionalLight.shadow.camera.bottom = -30;
+        scene.add(directionalLight);
+        
+        // Materials
+        const platformMaterials = {
+            ui: new THREE.MeshLambertMaterial({ color: 0x10b981, opacity: 0.8, transparent: true }),
+            business: new THREE.MeshLambertMaterial({ color: 0xf59e0b, opacity: 0.8, transparent: true }),
+            output: new THREE.MeshLambertMaterial({ color: 0x8b5cf6, opacity: 0.8, transparent: true }),
+            database: new THREE.MeshLambertMaterial({ color: 0x06b6d4, opacity: 0.8, transparent: true })
+        };
+        
+        const componentMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x64748b,
+            opacity: 0.9,
+            transparent: true
+        });
+        
+        // Enhanced hover material with glow effect
+        const hoverMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x3b82f6,
+            emissive: 0x1e40af,
+            emissiveIntensity: 0.3,
+            opacity: 1,
+            transparent: false
+        });
+        
+        // Glowing selected material
+        const selectedMaterial = new THREE.MeshLambertMaterial({
+            color: 0x10b981,
+            emissive: 0x059669,
+            emissiveIntensity: 0.5,
+            opacity: 1,
+            transparent: false
+        });
+        
+        // Architecture data to match diagram flow
+        const architectureData = {
+            userInterface: {
+                platform: { x: -6, z: 6, width: 8, depth: 4 },
+                components: [
+                    { name: "Input Tables", x: -8, z: 7, info: "Data input interface for user data entry and manipulation" },
+                    { name: "Pie Chart", x: -6, z: 7, info: "Visual representation of data in circular chart format" },
+                    { name: "Year Selector", x: -4, z: 7, info: "Time-based filtering component for temporal data" },
+                    { name: "Bar Chart", x: -8, z: 5, info: "Comparative data visualization using rectangular bars" },
+                    { name: "Donut Chart", x: -6, z: 5, info: "Circular chart with center void for additional information" }
+                ]
+            },
+            businessLogic: {
+                platform: { x: -6, z: 1, width: 6, depth: 3 },
+                components: [
+                    { name: "Excel Calculator", x: -7.5, z: 1, info: "Spreadsheet-based calculation engine for complex formulas" },
+                    { name: "Web Calculator", x: -4.5, z: 1, info: "Browser-based calculation service for real-time processing" }
+                ]
+            },
+            output: {
+                platform: { x: 4, z: 1, width: 4, depth: 3 },
+                components: [
+                    { name: "Output Tables", x: 4, z: 1, info: "Processed data display in structured table format" }
+                ]
+            },
+            database: {
+                platform: { x: 4, z: -4, width: 6, depth: 3 },
+                components: [
+                    { name: "AirTable", x: 2, z: -4, info: "Cloud-based database with API integration capabilities" },
+                    { name: "Excel", x: 6, z: -4, info: "Traditional spreadsheet storage and processing system" }
+                ]
+            }
+        };
+        
+        // Create platforms and components
+        const platforms = {};
+        const components = [];
+        const originalMaterials = new Map();
+        const targetScales = new Map();
+        const targetPositions = new Map();
+        
+        Object.entries(architectureData).forEach(([layerName, layerData]) => {
+            // Create platform
+            const platformGeometry = new THREE.BoxGeometry(
+                layerData.platform.width, 
+                0.5, 
+                layerData.platform.depth
+            );
+            const platform = new THREE.Mesh(platformGeometry, platformMaterials[layerName]);
+            platform.position.set(layerData.platform.x, -0.25, layerData.platform.z);
+            platform.receiveShadow = true;
+            platform.userData = {
+                type: 'platform',
+                layer: layerName,
+                connectionPoint: {
+                    x: layerData.platform.x,
+                    y: 0,
+                    z: layerData.platform.z
+                }
+            };
+            scene.add(platform);
+            platforms[layerName] = platform;
+            
+            // Create components
+            layerData.components.forEach(comp => {
+                const componentGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+                const component = new THREE.Mesh(componentGeometry, componentMaterial.clone());
+                component.position.set(comp.x, 0.75, comp.z);
+                component.castShadow = true;
+                component.receiveShadow = true;
+                
+                // Store component data
+                component.userData = {
+                    type: 'component',
+                    name: comp.name,
+                    layer: layerName,
+                    info: comp.info,
+                    originalY: 0.75,
+                    originalScale: { x: 1, y: 1, z: 1 },
+                    connectionPoint: {
+                        x: comp.x,
+                        y: 0.75,
+                        z: comp.z
+                    }
+                };
+                
+                originalMaterials.set(component, component.material);
+                targetScales.set(component, new THREE.Vector3(1, 1, 1));
+                targetPositions.set(component, new THREE.Vector3(comp.x, 0.75, comp.z));
+                components.push(component);
+                scene.add(component);
+            });
+        });
+        
+        // ====== MODULAR BÉZIER CURVE SYSTEM ======
+        
+        /**
+         * Connection Point Calculator
+         * Determines optimal connection points for different element types
+         */
+        class ConnectionPointCalculator {
+            static getConnectionPoint(element, direction = 'center') {
+                const userData = element.userData;
+                const basePoint = userData.connectionPoint;
+                
+                switch (userData.type) {
+                    case 'platform':
+                        return this.getPlatformConnectionPoint(basePoint, direction);
+                    case 'component':
+                        return this.getComponentConnectionPoint(basePoint, direction);
+                    default:
+                        return new THREE.Vector3(basePoint.x, basePoint.y, basePoint.z);
+                }
+            }
+            
+            static getPlatformConnectionPoint(basePoint, direction) {
+                // Platform connections are at surface level
+                const offset = 0.26; // Just above platform surface
+                return new THREE.Vector3(
+                    basePoint.x,
+                    basePoint.y + offset,
+                    basePoint.z
+                );
+            }
+            
+            static getComponentConnectionPoint(basePoint, direction) {
+                // Component connections are at center of component
+                return new THREE.Vector3(
+                    basePoint.x,
+                    basePoint.y,
+                    basePoint.z
+                );
+            }
+            
+            static getOptimalHeight(fromPoint, toPoint, curvature = 2.0) {
+                const maxY = Math.max(fromPoint.y, toPoint.y);
+                const distance = fromPoint.distanceTo(toPoint);
+                return maxY + (distance / curvature);
+            }
+        }
+        
+        /**
+         * Bézier Curve Generator
+         * Creates smooth curves between connection points
+         */
+        class BezierCurveGenerator {
+            static createCurve(startPoint, endPoint, options = {}) {
+                const {
+                    curvature = 2.0,
+                    verticalOffset = 1.5,
+                    horizontalOffset = 0.3
+                } = options;
+                
+                const distance = startPoint.distanceTo(endPoint);
+                const midY = ConnectionPointCalculator.getOptimalHeight(startPoint, endPoint, curvature);
+                
+                // Calculate control points for smooth curves
+                const controlPoint1 = this.calculateControlPoint1(startPoint, endPoint, {
+                    verticalOffset,
+                    horizontalOffset,
+                    distance
+                });
+                
+                const controlPoint2 = this.calculateControlPoint2(startPoint, endPoint, {
+                    verticalOffset,
+                    horizontalOffset,
+                    distance,
+                    midY
+                });
+                
+                return new THREE.CubicBezierCurve3(
+                    startPoint,
+                    controlPoint1,
+                    controlPoint2,
+                    endPoint
+                );
+            }
+            
+            static calculateControlPoint1(start, end, options) {
+                const { verticalOffset, horizontalOffset, distance } = options;
+                const direction = new THREE.Vector3().subVectors(end, start).normalize();
+                const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x);
+                
+                return new THREE.Vector3(
+                    start.x + direction.x * (distance * 0.3) + perpendicular.x * horizontalOffset,
+                    start.y + verticalOffset,
+                    start.z + direction.z * (distance * 0.3) + perpendicular.z * horizontalOffset
+                );
+            }
+            
+            static calculateControlPoint2(start, end, options) {
+                const { verticalOffset, horizontalOffset, distance, midY } = options;
+                const direction = new THREE.Vector3().subVectors(start, end).normalize();
+                const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x);
+                
+                return new THREE.Vector3(
+                    end.x + direction.x * (distance * 0.3) + perpendicular.x * horizontalOffset,
+                    Math.max(end.y + verticalOffset, midY * 0.8),
+                    end.z + direction.z * (distance * 0.3) + perpendicular.z * horizontalOffset
+                );
+            }
+        }
+        
+        /**
+         * Connection Manager
+         * Handles all connection logic and rendering
+         */
+        class ConnectionManager {
+            constructor(scene) {
+                this.scene = scene;
+                this.connectionGroup = new THREE.Group();
+                this.animationGroup = new THREE.Group();
+                this.scene.add(this.connectionGroup);
+                this.scene.add(this.animationGroup);
+                this.curves = [];
+                this.animationParticles = [];
+                this.animationEnabled = false;
+            }
+            
+            addConnection(fromElement, toElement, options = {}) {
+                const fromPoint = ConnectionPointCalculator.getConnectionPoint(fromElement, 'output');
+                const toPoint = ConnectionPointCalculator.getConnectionPoint(toElement, 'input');
+                
+                const curve = BezierCurveGenerator.createCurve(fromPoint, toPoint, options);
+                this.curves.push(curve);
+                
+                this.createCurveVisual(curve, options);
+                this.createArrow(curve, options);
+                
+                if (this.animationEnabled) {
+                    this.createAnimationParticle(curve);
+                }
+            }
+            
+            createCurveVisual(curve, options = {}) {
+                const {
+                    color = 0x94a3b8,
+                    opacity = 0.7,
+                    lineWidth = 2,
+                    segments = 50
+                } = options;
+                
+                const points = curve.getPoints(segments);
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                
+                const material = new THREE.LineBasicMaterial({
+                    color: color,
+                    opacity: opacity,
+                    transparent: true,
+                    linewidth: lineWidth
+                });
+                
+                const line = new THREE.Line(geometry, material);
+                this.connectionGroup.add(line);
+            }
+            
+            createArrow(curve, options = {}) {
+                const {
+                    arrowColor = 0x3b82f6,
+                    arrowSize = 0.3
+                } = options;
+                
+                // Get point near the end of curve for arrow placement
+                const arrowPoint = curve.getPointAt(0.9);
+                const endPoint = curve.getPointAt(1.0);
+                const direction = new THREE.Vector3().subVectors(endPoint, arrowPoint).normalize();
+                
+                const arrowGeometry = new THREE.ConeGeometry(arrowSize * 0.5, arrowSize, 8);
+                const arrowMaterial = new THREE.MeshLambertMaterial({ 
+                    color: arrowColor,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+                arrow.position.copy(arrowPoint);
+                arrow.lookAt(endPoint);
+                arrow.rotateX(Math.PI / 2);
+                
+                this.connectionGroup.add(arrow);
+            }
+            
+            createAnimationParticle(curve) {
+                const particleGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+                const particleMaterial = new THREE.MeshLambertMaterial({
+                    color: 0x10b981,
+                    emissive: 0x059669,
+                    emissiveIntensity: 0.3
+                });
+                
+                const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+                particle.userData = {
+                    curve: curve,
+                    progress: 0,
+                    speed: 0.01 + Math.random() * 0.02
+                };
+                
+                this.animationParticles.push(particle);
+                this.animationGroup.add(particle);
+            }
+            
+            updateAnimations() {
+                if (!this.animationEnabled) return;
+                
+                this.animationParticles.forEach(particle => {
+                    particle.userData.progress += particle.userData.speed;
+                    
+                    if (particle.userData.progress >= 1) {
+                        particle.userData.progress = 0;
+                    }
+                    
+                    const point = particle.userData.curve.getPointAt(particle.userData.progress);
+                    particle.position.copy(point);
+                    
+                    // Pulsing effect
+                    const pulse = Math.sin(particle.userData.progress * Math.PI * 4) * 0.3 + 0.7;
+                    particle.scale.setScalar(pulse);
+                });
+            }
+            
+            toggleAnimation() {
+                this.animationEnabled = !this.animationEnabled;
+                
+                if (this.animationEnabled) {
+                    // Create animation particles for existing curves
+                    this.curves.forEach(curve => {
+                        this.createAnimationParticle(curve);
+                    });
+                } else {
+                    // Remove animation particles
+                    this.animationParticles.forEach(particle => {
+                        this.animationGroup.remove(particle);
+                    });
+                    this.animationParticles = [];
+                }
+            }
+            
+            clear() {
+                this.connectionGroup.clear();
+                this.animationGroup.clear();
+                this.curves = [];
+                this.animationParticles = [];
+            }
+            
+            setVisible(visible) {
+                this.connectionGroup.visible = visible;
+                this.animationGroup.visible = visible;
+            }
+        }
+        
+        // Initialize Connection Manager
+        const connectionManager = new ConnectionManager(scene);
+        
+        // Create connections based on architecture flow
+        function createEnhancedConnections() {
+            connectionManager.clear();
+            
+            // Find elements by name for precise connections
+            const findComponent = (name) => components.find(c => c.userData.name === name);
+            const findPlatform = (layer) => platforms[layer];
+            
+            // UI Layer to Business Logic connections
+            const uiComponents = [
+                findComponent("Input Tables"),
+                findComponent("Pie Chart"),
+                findComponent("Year Selector"),
+                findComponent("Bar Chart"),
+                findComponent("Donut Chart")
+            ];
+            
+            const businessComponents = [
+                findComponent("Excel Calculator"),
+                findComponent("Web Calculator")
+            ];
+            
+            // Create connections with different styles
+            uiComponents.forEach((uiComp, index) => {
+                if (uiComp) {
+                    const targetCalc = businessComponents[index % businessComponents.length];
+                    if (targetCalc) {
+                        connectionManager.addConnection(uiComp, targetCalc, {
+                            color: 0x10b981,
+                            opacity: 0.6,
+                            curvature: 1.8,
+                            verticalOffset: 2.0
+                        });
+                    }
+                }
+            });
+            
+            // Business Logic to Output connections
+            const outputComponent = findComponent("Output Tables");
+            if (outputComponent) {
+                businessComponents.forEach(calc => {
+                    if (calc) {
+                        connectionManager.addConnection(calc, outputComponent, {
+                            color: 0xf59e0b,
+                            opacity: 0.7,
+                            curvature: 2.2,
+                            verticalOffset: 1.5
+                        });
+                    }
+                });
+            }
+            
+            // Output to Database connections
+            const databaseComponents = [
+                findComponent("AirTable"),
+                findComponent("Excel")
+            ];
+            
+            if (outputComponent) {
+                databaseComponents.forEach(dbComp => {
+                    if (dbComp) {
+                        connectionManager.addConnection(outputComponent, dbComp, {
+                            color: 0x8b5cf6,
+                            opacity: 0.8,
+                            curvature: 2.5,
+                            verticalOffset: 2.5
+                        });
+                    }
+                });
+            }
+        }
+        
+        // Create the enhanced connections
+        createEnhancedConnections();
+        
+        // Enhanced interaction system with smooth animations
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const infoCard = document.getElementById('infoCard');
+        let hoveredComponent = null;
+        let selectedComponent = null;
+        
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(components);
+            
+            if (intersects.length > 0) {
+                const component = intersects[0].object;
+                
+                if (hoveredComponent !== component && component !== selectedComponent) {
+                    // Reset previous hover
+                    if (hoveredComponent && hoveredComponent !== selectedComponent) {
+                        resetComponentState(hoveredComponent);
+                    }
+                    
+                    // Set new hover with glow effect
+                    hoveredComponent = component;
+                    component.material = hoverMaterial.clone();
+                    
+                    // Smooth hover animation
+                    targetScales.set(component, new THREE.Vector3(1.15, 1.15, 1.15));
+                    targetPositions.set(component, new THREE.Vector3(
+                        component.userData.connectionPoint.x,
+                        component.userData.originalY + 0.3,
+                        component.userData.connectionPoint.z
+                    ));
+                    
+                    // Update info card
+                    updateInfoCard(component);
+                }
+            } else {
+                if (hoveredComponent && hoveredComponent !== selectedComponent) {
+                    resetComponentState(hoveredComponent);
+                    hoveredComponent = null;
+                    infoCard.classList.remove('visible');
+                }
+            }
+        }
+        
+        // Click to select with enhanced glow
+        function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(components);
+            
+            // Reset previous selection
+            if (selectedComponent) {
+                resetComponentState(selectedComponent);
+            }
+            
+            if (intersects.length > 0) {
+                const component = intersects[0].object;
+                selectedComponent = component;
+                
+                // Enhanced selected state with strong glow
+                component.material = selectedMaterial.clone();
+                component.material.emissiveIntensity = 0.7;
+                
+                // More dramatic selection animation
+                targetScales.set(component, new THREE.Vector3(1.3, 1.8, 1.3));
+                targetPositions.set(component, new THREE.Vector3(
+                    component.userData.connectionPoint.x,
+                    component.userData.originalY + 1.0,
+                    component.userData.connectionPoint.z
+                ));
+                
+                updateInfoCard(component);
+            } else {
+                selectedComponent = null;
+                infoCard.classList.remove('visible');
+            }
+        }
+        
+        function resetComponentState(component) {
+            component.material = originalMaterials.get(component);
+            targetScales.set(component, new THREE.Vector3(1, 1, 1));
+            targetPositions.set(component, new THREE.Vector3(
+                component.userData.connectionPoint.x,
+                component.userData.originalY,
+                component.userData.connectionPoint.z
+            ));
+        }
+        
+        function updateInfoCard(component) {
+            document.getElementById('cardLayer').textContent = component.userData.layer.replace(/([A-Z])/g, ' $1').trim();
+            document.getElementById('cardTitle').textContent = component.userData.name;
+            document.getElementById('cardDescription').textContent = component.userData.info;
+            
+            // Position card with improved positioning
+            const screenPosition = component.position.clone();
+            screenPosition.project(camera);
+            const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
+            
+            infoCard.style.left = Math.min(x + 20, window.innerWidth - 320) + 'px';
+            infoCard.style.top = Math.max(y - 60, 20) + 'px';
+            infoCard.classList.add('visible');
+        }
+        
+        // Store original positions for all components
+        components.forEach(component => {
+            component.userData.originalPosition = {
+                x: component.position.x,
+                y: component.position.y,
+                z: component.position.z
+            };
+        });
+        
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('click', onMouseClick);
+        
+        // Control functions
+        let connectionsVisible = true;
+        function toggleConnections() {
+            connectionsVisible = !connectionsVisible;
+            connectionManager.setVisible(connectionsVisible);
+        }
+        
+        function toggleAnimatedFlow() {
+            connectionManager.toggleAnimation();
+        }
+        
+        function toggleLabels() {
+            console.log('Labels toggle - could implement 3D text here');
+        }
+        
+        // Resize handling
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -frustumSize * aspect / 2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = -frustumSize / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        window.addEventListener('resize', onWindowResize);
+        
+        // Animation loop with smooth transitions
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update connection animations
+            connectionManager.updateAnimations();
+            
+            // Smooth interpolation for all components
+            const lerpFactor = 0.12;
+            
+            components.forEach(component => {
+                const targetScale = targetScales.get(component);
+                const targetPosition = targetPositions.get(component);
+                
+                if (targetScale && targetPosition) {
+                    // Smooth scale interpolation
+                    component.scale.lerp(targetScale, lerpFactor);
+                    
+                    // Smooth position interpolation
+                    component.position.lerp(targetPosition, lerpFactor);
+                    
+                    // Add subtle floating animation for selected components
+                    if (component === selectedComponent) {
+                        const time = Date.now() * 0.002;
+                        component.position.y = targetPosition.y + Math.sin(time) * 0.1;
+                        
+                        // Pulsing glow effect
+                        if (component.material.emissiveIntensity !== undefined) {
+                            component.material.emissiveIntensity = 0.7 + Math.sin(time * 2) * 0.2;
+                        }
+                    }
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+        
+        // Make functions global
+        window.setIsometricView = setIsometricView;
+        window.setTopView = setTopView;
+        window.toggleConnections = toggleConnections;
+        window.toggleLabels = toggleLabels;
+        window.toggleAnimatedFlow = toggleAnimatedFlow;
+    </script>
+</body>
+</html>
