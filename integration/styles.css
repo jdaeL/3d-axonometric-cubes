@@ -1,0 +1,206 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f8fafc;
+    padding: 2rem;
+}
+
+/* Layout containers */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+/* Typography */
+.main-title {
+    font-size: 2.5rem;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    color: #64748b;
+    margin-bottom: 2rem;
+}
+
+/* Viewer container */
+.viewer-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.viewer-header {
+    background: #f1f5f9;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.viewer-title {
+    color: #1e293b;
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.viewer-description {
+    color: #64748b;
+    margin: 0.5rem 0 0 0;
+    font-size: 0.9rem;
+}
+
+/* Three.js viewer */
+#architectureViewer {
+    height: 600px;
+    width: 100%;
+    position: relative;
+}
+
+/* Info card styles (injected by JavaScript) */
+.axon-info-card {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    min-width: 220px;
+    max-width: 300px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    padding: 16px;
+    font-size: 14px;
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.axon-info-card.visible {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+
+.card-layer {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.card-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #0f172a;
+}
+
+.card-description {
+    color: #475569;
+    line-height: 1.4;
+}
+
+/* Control buttons (injected by JavaScript) */
+.axon-controls {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+}
+
+.axon-controls button {
+    background: #3b82f6;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    margin: 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.axon-controls button:hover {
+    background: #2563eb;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+    
+    .main-title {
+        font-size: 2rem;
+    }
+    
+    #architectureViewer {
+        height: 400px;
+    }
+    
+    .axon-info-card {
+        top: 10px;
+        right: 10px;
+        min-width: 180px;
+        max-width: 250px;
+        padding: 12px;
+        font-size: 12px;
+    }
+    
+    .axon-controls {
+        top: 10px;
+        left: 10px;
+    }
+    
+    .axon-controls button {
+        padding: 6px 12px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 0.5rem;
+    }
+    
+    .main-title {
+        font-size: 1.8rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    #architectureViewer {
+        height: 350px;
+    }
+    
+    .viewer-header {
+        padding: 0.8rem 1rem;
+    }
+    
+    .viewer-title {
+        font-size: 1.1rem;
+    }
+    
+    .viewer-description {
+        font-size: 0.8rem;
+    }
+}
