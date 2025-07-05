@@ -89,7 +89,7 @@ const networkData = {
         ]
     },
     services: {
-        platform: { x: 8, z: 0, width: 4, depth: 6 },
+        platform: { x: 8, z: 0, width: 8, depth: 8 },
         components: [
             { name: "Auth Service", x: 6, z: 1, info: "Authentication and authorization service" },
             { name: "Data Service", x: 10, z: 1, info: "Data processing and management service" },
