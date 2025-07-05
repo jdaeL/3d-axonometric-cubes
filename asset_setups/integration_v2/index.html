@@ -164,7 +164,6 @@
             <button onclick="toggleLabels()" class="secondary">Toggle Labels</button>
             <br>
             <button onclick="toggleAnimatedFlow()" class="accent">Animated Flow</button>
-            <button onclick="showConnectionInfo()" class="accent">Connection Info</button>
         </div>
         
         <div class="legend">
@@ -178,15 +177,17 @@
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background: #8b5cf6;"></div>
-                <span>Output Layer</span>
+                <span>Output Layer (Central Cube)</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background: #06b6d4;"></div>
                 <span>Database Layer</span>
             </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #64748b;"></div>
-                <span>Standalone Components</span>
+            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #64748b;">
+                <strong>Connection Rules:</strong><br>
+                • Platform → Platform<br>
+                • Platform → Central Cube<br>
+                • Central Cube → Platform
             </div>
         </div>
     </div>
@@ -308,9 +309,10 @@
                 ]
             },
             output: {
-                platform: { x: 4, z: 1, width: 4, depth: 3 },
+                // NO platform - Output Tables acts as independent central cube
+                platform: null,
                 components: [
-                    { name: "Output Tables", x: 4, z: 1, info: "Processed data display in structured table format" }
+                    { name: "Output Tables", x: 4, z: 1, info: "Central processing hub - acts as independent cube without platform" }
                 ]
             },
             database: {
@@ -318,14 +320,6 @@
                 components: [
                     { name: "AirTable", x: 2, z: -4, info: "Cloud-based database with API integration capabilities" },
                     { name: "Excel", x: 6, z: -4, info: "Traditional spreadsheet storage and processing system" }
-                ]
-            },
-            // Example of standalone components (without platform)
-            standalone: {
-                platform: null, // No platform for these components
-                components: [
-                    { name: "API Gateway", x: 10, z: 1, info: "External API access point - standalone service" },
-                    { name: "Cache Layer", x: 10, z: -2, info: "Redis caching system - standalone service" }
                 ]
             }
         };
@@ -345,8 +339,7 @@
                     0.5, 
                     layerData.platform.depth
                 );
-                const platformMaterial = platformMaterials[layerName] || platformMaterials.database;
-                const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+                const platform = new THREE.Mesh(platformGeometry, platformMaterials[layerName]);
                 platform.position.set(layerData.platform.x, -0.25, layerData.platform.z);
                 platform.receiveShadow = true;
                 platform.userData = {
@@ -366,9 +359,25 @@
             layerData.components.forEach(comp => {
                 const componentGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
                 const component = new THREE.Mesh(componentGeometry, componentMaterial.clone());
-                component.position.set(comp.x, 0.75, comp.z);
+                
+                // Position component based on whether it has a platform
+                const hasPlataform = layerData.platform !== null;
+                const yPosition = hasPlataform ? 0.75 : 0.75; // Keep same height for now, but mark the difference
+                
+                component.position.set(comp.x, yPosition, comp.z);
                 component.castShadow = true;
                 component.receiveShadow = true;
+                
+                // Special styling for central cube (no platform)
+                if (!hasPlataform) {
+                    component.material = new THREE.MeshLambertMaterial({ 
+                        color: 0x8b5cf6,  // Purple to match output layer
+                        opacity: 0.9,
+                        transparent: true,
+                        emissive: 0x3b1065,
+                        emissiveIntensity: 0.1
+                    });
+                }
                 
                 // Store component data
                 component.userData = {
@@ -376,19 +385,19 @@
                     name: comp.name,
                     layer: layerName,
                     info: comp.info,
-                    originalY: 0.75,
+                    hasPlataform: hasPlataform,
+                    originalY: yPosition,
                     originalScale: { x: 1, y: 1, z: 1 },
-                    hasPlataform: !!layerData.platform, // Mark if this component is on a platform
                     connectionPoint: {
                         x: comp.x,
-                        y: 0.75,
+                        y: yPosition,
                         z: comp.z
                     }
                 };
                 
                 originalMaterials.set(component, component.material);
                 targetScales.set(component, new THREE.Vector3(1, 1, 1));
-                targetPositions.set(component, new THREE.Vector3(comp.x, 0.75, comp.z));
+                targetPositions.set(component, new THREE.Vector3(comp.x, yPosition, comp.z));
                 components.push(component);
                 scene.add(component);
             });
@@ -399,24 +408,28 @@
         /**
          * Connection Point Calculator
          * Determines optimal connection points for different element types
+         * Rules: 
+         * - If component has platform -> connect to platform
+         * - If component has NO platform -> connect directly to component
          */
         class ConnectionPointCalculator {
             static getConnectionPoint(element, direction = 'center') {
                 const userData = element.userData;
-                const basePoint = userData.connectionPoint;
                 
+                // If component has platform, connect to platform instead
+                if (userData.type === 'component' && userData.hasPlataform) {
+                    const platform = platforms[userData.layer];
+                    if (platform) {
+                        return this.getPlatformConnectionPoint(platform.userData.connectionPoint, direction);
+                    }
+                }
+                
+                // Connect directly to element
+                const basePoint = userData.connectionPoint;
                 switch (userData.type) {
                     case 'platform':
                         return this.getPlatformConnectionPoint(basePoint, direction);
                     case 'component':
-                        // Check if component is on a platform
-                        if (userData.hasPlataform) {
-                            // If component is on platform, connect to platform instead
-                            const platformElement = this.findPlatformForComponent(element);
-                            if (platformElement) {
-                                return this.getPlatformConnectionPoint(platformElement.userData.connectionPoint, direction);
-                            }
-                        }
                         return this.getComponentConnectionPoint(basePoint, direction);
                     default:
                         return new THREE.Vector3(basePoint.x, basePoint.y, basePoint.z);
@@ -434,7 +447,7 @@
             }
             
             static getComponentConnectionPoint(basePoint, direction) {
-                // Component connections are at center of component (only for standalone components)
+                // Component connections are at center of component
                 return new THREE.Vector3(
                     basePoint.x,
                     basePoint.y,
@@ -442,27 +455,10 @@
                 );
             }
             
-            static findPlatformForComponent(component) {
-                const componentLayer = component.userData.layer;
-                return platforms[componentLayer] || null;
-            }
-            
             static getOptimalHeight(fromPoint, toPoint, curvature = 2.0) {
                 const maxY = Math.max(fromPoint.y, toPoint.y);
                 const distance = fromPoint.distanceTo(toPoint);
                 return maxY + (distance / curvature);
-            }
-            
-            static shouldConnectToPlatform(element) {
-                return element.userData.type === 'component' && element.userData.hasPlataform;
-            }
-            
-            static getEffectiveConnectionElement(element) {
-                // Returns the element we should actually connect to (platform or component)
-                if (this.shouldConnectToPlatform(element)) {
-                    return this.findPlatformForComponent(element);
-                }
-                return element;
             }
         }
         
@@ -545,12 +541,8 @@
             }
             
             addConnection(fromElement, toElement, options = {}) {
-                // Get the effective connection elements (platform or component)
-                const effectiveFromElement = ConnectionPointCalculator.getEffectiveConnectionElement(fromElement);
-                const effectiveToElement = ConnectionPointCalculator.getEffectiveConnectionElement(toElement);
-                
-                const fromPoint = ConnectionPointCalculator.getConnectionPoint(effectiveFromElement, 'output');
-                const toPoint = ConnectionPointCalculator.getConnectionPoint(effectiveToElement, 'input');
+                const fromPoint = ConnectionPointCalculator.getConnectionPoint(fromElement, 'output');
+                const toPoint = ConnectionPointCalculator.getConnectionPoint(toElement, 'input');
                 
                 const curve = BezierCurveGenerator.createCurve(fromPoint, toPoint, options);
                 this.curves.push(curve);
@@ -686,81 +678,56 @@
         function createEnhancedConnections() {
             connectionManager.clear();
             
-            // Since all components are on platforms, we connect platform to platform
-            // but we use representative components to determine the connection logic
-            
-            // Get platforms for connections
-            const uiPlatform = platforms.userInterface;
-            const businessPlatform = platforms.businessLogic;
-            const outputPlatform = platforms.output;
-            const databasePlatform = platforms.database;
-            
-            // Find standalone components (components without platforms)
+            // Find elements by name for precise connections
             const findComponent = (name) => components.find(c => c.userData.name === name);
-            const apiGateway = findComponent("API Gateway");
-            const cacheLayer = findComponent("Cache Layer");
+            const findPlatform = (layer) => platforms[layer];
             
-            // UI Layer to Business Logic Platform
-            // Connect from UI platform to Business Logic platform
+            // CONNECTION RULE IMPLEMENTATION:
+            // - Components WITH platform → Connect to platform
+            // - Components WITHOUT platform → Connect directly to component
+            // - This creates the flow: Platform → Platform → Central Cube → Platform
+            
+            // Connection 1: User Interface → Calculators (Platform to Platform)
+            // UI components have platform, so connect to UI platform
+            // Calculator components have platform, so connect to Calculator platform
+            const uiPlatform = findPlatform('userInterface');
+            const businessPlatform = findPlatform('businessLogic');
+            
             if (uiPlatform && businessPlatform) {
                 connectionManager.addConnection(uiPlatform, businessPlatform, {
                     color: 0x10b981,
-                    opacity: 0.6,
-                    curvature: 1.8,
-                    verticalOffset: 2.0
-                });
-            }
-            
-            // Business Logic Platform to Output Platform
-            if (businessPlatform && outputPlatform) {
-                connectionManager.addConnection(businessPlatform, outputPlatform, {
-                    color: 0xf59e0b,
-                    opacity: 0.7,
-                    curvature: 2.2,
-                    verticalOffset: 1.5
-                });
-            }
-            
-            // Output Platform to Database Platform
-            if (outputPlatform && databasePlatform) {
-                connectionManager.addConnection(outputPlatform, databasePlatform, {
-                    color: 0x8b5cf6,
                     opacity: 0.8,
-                    curvature: 2.5,
+                    curvature: 2.0,
                     verticalOffset: 2.5
                 });
             }
             
-            // Connections to standalone components (no platform)
-            // These connections go directly to the component, not to a platform
-            
-            // Output Platform to API Gateway (standalone component)
-            if (outputPlatform && apiGateway) {
-                connectionManager.addConnection(outputPlatform, apiGateway, {
-                    color: 0x06b6d4,
-                    opacity: 0.9,
-                    curvature: 2.0,
-                    verticalOffset: 1.8
-                });
-            }
-            
-            // API Gateway to Cache Layer (both standalone components)
-            if (apiGateway && cacheLayer) {
-                connectionManager.addConnection(apiGateway, cacheLayer, {
-                    color: 0x64748b,
+            // Connection 2: Calculators → Output Tables (Platform to Central Cube)
+            // Calculator components have platform, so connect FROM platform
+            // Output Tables has NO platform, so connect directly TO component
+            const outputComponent = findComponent("Output Tables");
+            if (businessPlatform && outputComponent) {
+                connectionManager.addConnection(businessPlatform, outputComponent, {
+                    color: 0xf59e0b,
                     opacity: 0.8,
-                    curvature: 1.5,
-                    verticalOffset: 1.2
+                    curvature: 2.2,
+                    verticalOffset: 2.0
                 });
             }
             
-            // Cache Layer to Database Platform (standalone to platform)
-            if (cacheLayer && databasePlatform) {
-                connectionManager.addConnection(cacheLayer, databasePlatform, {
-                    color: 0x6366f1,
-                    opacity: 0.7,
-                    curvature: 2.0,
-                    verticalOffset: 1.5
+            // Connection 3 & 4: Output Tables → Database Components (Central Cube to Platform)
+            // Output Tables has NO platform, so connect FROM component directly
+            // Database components have platform, so connect TO platform
+            const databasePlatform = findPlatform('database');
+            
+            if (outputComponent && databasePlatform) {
+                // Single connection from Output Tables to Database platform
+                // (represents distribution to both AirTable and Excel on the platform)
+                connectionManager.addConnection(outputComponent, databasePlatform, {
+                    color: 0x8b5cf6,
+                    opacity: 0.8,
+                    curvature: 2.5,
+                    verticalOffset: 2.8
                 });
             }
         }
@@ -877,12 +844,12 @@
             infoCard.classList.add('visible');
         }
         
-        // Store original positions for all components
+        // Store original positions for all components (using connectionPoint for consistency)
         components.forEach(component => {
             component.userData.originalPosition = {
-                x: component.position.x,
-                y: component.position.y,
-                z: component.position.z
+                x: component.userData.connectionPoint.x,
+                y: component.userData.connectionPoint.y,
+                z: component.userData.connectionPoint.z
             };
         });
         
@@ -898,30 +865,6 @@
         
         function toggleAnimatedFlow() {
             connectionManager.toggleAnimation();
-        }
-        
-        function showConnectionInfo() {
-            const info = `
-            SMART CONNECTION SYSTEM:
-
-            CONNECTION LOGIC:
-            • Components ON platforms → Connect to PLATFORM
-            • Components WITHOUT platforms → Connect to COMPONENT directly
-
-            CURRENT CONNECTIONS:
-            • UI Platform → Business Platform (Platform to Platform)
-            • Business Platform → Output Platform (Platform to Platform)  
-            • Output Platform → Database Platform (Platform to Platform)
-            • Output Platform → API Gateway (Platform to Standalone Component)
-            • API Gateway → Cache Layer (Standalone to Standalone)
-            • Cache Layer → Database Platform (Standalone to Platform)
-
-            MODULARITY:
-            • System automatically detects platform presence
-            • Curves adapt to connection type
-            • Easy to add new elements with proper routing
-                        `;
-            alert(info);
         }
         
         function toggleLabels() {
@@ -986,7 +929,6 @@
         window.toggleConnections = toggleConnections;
         window.toggleLabels = toggleLabels;
         window.toggleAnimatedFlow = toggleAnimatedFlow;
-        window.showConnectionInfo = showConnectionInfo;
     </script>
 </body>
 </html>
