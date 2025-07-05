@@ -1,0 +1,164 @@
+        /* ===== BASE STYLES ===== */
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .demo-container {
+            margin-bottom: 40px;
+        }
+        
+        .demo-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+        
+        .demo-description {
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+        
+        /* ===== DIAGRAM CONTAINER STYLES ===== */
+        .diagram-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .diagram-container canvas {
+            display: block;
+        }
+        
+        /* ===== INFO CARD STYLES ===== */
+        .diagram-info-card {
+            position: absolute;
+            min-width: 220px;
+            max-width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            padding: 16px;
+            color: #1e293b;
+            font-size: 14px;
+            opacity: 0;
+            transform: scale(0.9) translateY(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .diagram-info-card.visible {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+        
+        .diagram-info-card .title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #0f172a;
+        }
+        
+        .diagram-info-card .layer {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .diagram-info-card .description {
+            color: #475569;
+            line-height: 1.4;
+        }
+        
+        /* ===== CONTROLS STYLES ===== */
+        .diagram-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .diagram-controls h3 {
+            margin: 0 0 15px 0;
+            color: #1e293b;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .diagram-controls button {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            margin: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .diagram-controls button:hover {
+            background: #2563eb;
+        }
+        
+        .diagram-controls button.secondary {
+            background: #64748b;
+        }
+        
+        .diagram-controls button.secondary:hover {
+            background: #475569;
+        }
+        
+        .diagram-controls button.accent {
+            background: #10b981;
+        }
+        
+        .diagram-controls button.accent:hover {
+            background: #059669;
+        }
+        
+        /* ===== LEGEND STYLES ===== */
+        .diagram-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            font-size: 12px;
+            z-index: 200;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
