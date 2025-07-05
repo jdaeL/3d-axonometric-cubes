@@ -46,7 +46,7 @@ const hospitalConnections = [
             opacity: 0.8, 
             curvature: 2.0, 
             verticalOffset: 2.5,
-            curveType: 'smooth'
+            curveType: 'architectural'
         }
     },
     {
@@ -57,7 +57,7 @@ const hospitalConnections = [
             opacity: 0.8, 
             curvature: 2.2, 
             verticalOffset: 2.0,
-            curveType: 'smooth'
+            curveType: 'architectural'
         }
     },
     {
@@ -68,7 +68,7 @@ const hospitalConnections = [
             opacity: 0.8, 
             curvature: 2.5, 
             verticalOffset: 2.8,
-            curveType: 'smooth'
+            curveType: 'architectural'
         }
     }
 ];

@@ -921,7 +921,7 @@ class Diagram3D {
         
         Object.entries(this.data).forEach(([layerName, layerData]) => {
             // Create platform if specified
-            if (layerData.platform) {
+            if (layerData.platform !== null && layerData.platform !== undefined) {
                 const platform = this.createPlatform(layerData.platform, materials[layerName] || materials.default, layerName);
                 this.platforms[layerName] = platform;
             }
@@ -929,8 +929,9 @@ class Diagram3D {
             // Create components
             if (layerData.components) {
                 layerData.components.forEach(comp => {
-                    const component = this.createComponent(comp, layerName, layerData.platform !== null);
-                    this.components.push(component);
+                const hasPlataform = (layerData.platform !== null && layerData.platform !== undefined);
+                const component = this.createComponent(comp, layerName, hasPlataform);
+                this.components.push(component);
                     
                     if (this.interactionManager) {
                         this.interactionManager.registerComponent(component);
