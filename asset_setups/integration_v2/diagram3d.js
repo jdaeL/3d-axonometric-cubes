@@ -3,7 +3,7 @@
  * Modular 3D architectural diagram system using Three.js
  * 
  * @author jdael
- * @version 1.0.0
+ * @version 2.0
  */
 
 /**
@@ -164,58 +164,117 @@ class SceneManager {
  */
 class ConnectionPointCalculator {
     /**
-     * Get connection point for an element
+     * Get connection point for an element based on the closest edge to target
      * @param {THREE.Object3D} element - The 3D element
+     * @param {THREE.Object3D} targetElement - The target element to connect to
      * @param {string} direction - Connection direction ('input', 'output', 'center')
      * @returns {THREE.Vector3} Connection point in 3D space
      */
-    static getConnectionPoint(element, direction = 'center') {
+    static getConnectionPoint(element, targetElement, direction = 'center') {
         const userData = element.userData;
-        const basePoint = userData.connectionPoint;
         
+        // Calcular el punto de conexión basado en el elemento más cercano
         switch (userData.type) {
             case 'platform':
-                return this.getPlatformConnectionPoint(basePoint, direction);
+                return this.getPlatformConnectionPoint(element, targetElement, direction);
             case 'component':
-                return this.getComponentConnectionPoint(basePoint, direction, userData);
+                return this.getComponentConnectionPoint(element, targetElement, direction);
             case 'node':
-                return this.getNodeConnectionPoint(basePoint, direction);
+                return this.getNodeConnectionPoint(element, targetElement, direction);
             default:
-                return new THREE.Vector3(basePoint.x, basePoint.y, basePoint.z);
+                return this.getDefaultConnectionPoint(element, targetElement);
         }
     }
     
-    static getPlatformConnectionPoint(basePoint, direction) {
-        const offset = 0.26; // Just above platform surface
-        return new THREE.Vector3(
-            basePoint.x,
-            basePoint.y + offset,
-            basePoint.z
-        );
-    }
-    
-    static getComponentConnectionPoint(basePoint, direction, userData) {
-        let yOffset = 0;
+    /**
+     * Get platform connection point on the closest edge to target
+     */
+    static getPlatformConnectionPoint(platform, targetElement, direction) {
+        const platformPos = platform.position;
+        const targetPos = targetElement.position;
         
-        // Add offset based on component state or type
-        if (userData.elevated) {
-            yOffset = 0.5;
+        // Obtener dimensiones de la plataforma
+        const geometry = platform.geometry;
+        const width = geometry.parameters.width;
+        const depth = geometry.parameters.depth;
+        const height = geometry.parameters.height;
+        
+        // Calcular el punto en el borde más cercano al target
+        const dx = targetPos.x - platformPos.x;
+        const dz = targetPos.z - platformPos.z;
+        
+        let connectionX, connectionZ;
+        
+        // Determinar qué lado está más cerca
+        const absX = Math.abs(dx);
+        const absZ = Math.abs(dz);
+        
+        if (absX > absZ) {
+            // Conexión por el lado X (izquierda o derecha)
+            connectionX = platformPos.x + (dx > 0 ? width/2 : -width/2);
+            connectionZ = platformPos.z + Math.max(-depth/2, Math.min(depth/2, dz));
+        } else {
+            // Conexión por el lado Z (adelante o atrás)
+            connectionX = platformPos.x + Math.max(-width/2, Math.min(width/2, dx));
+            connectionZ = platformPos.z + (dz > 0 ? depth/2 : -depth/2);
         }
         
-        return new THREE.Vector3(
-            basePoint.x,
-            basePoint.y + yOffset,
-            basePoint.z
-        );
+        // Altura: ligeramente por encima de la superficie de la plataforma
+        const connectionY = platformPos.y + height/2 + 0.1;
+        
+        return new THREE.Vector3(connectionX, connectionY, connectionZ);
     }
     
-    static getNodeConnectionPoint(basePoint, direction) {
-        // Simple nodes connect at their center
-        return new THREE.Vector3(
-            basePoint.x,
-            basePoint.y,
-            basePoint.z
-        );
+    /**
+     * Get component connection point on the closest face to target
+     */
+    static getComponentConnectionPoint(component, targetElement, direction) {
+        const componentPos = component.position;
+        const targetPos = targetElement.position;
+        
+        // Obtener tamaño del componente (asumiendo cubo)
+        const size = component.geometry.parameters.width || 1.5;
+        const halfSize = size / 2;
+        
+        // Calcular dirección hacia el target
+        const dx = targetPos.x - componentPos.x;
+        const dy = targetPos.y - componentPos.y;
+        const dz = targetPos.z - componentPos.z;
+        
+        // Encontrar la cara más cercana
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+        const absZ = Math.abs(dz);
+        
+        let connectionPoint = componentPos.clone();
+        
+        // Determinar qué eje tiene la mayor diferencia
+        if (absX >= absY && absX >= absZ) {
+            // Conexión por cara X
+            connectionPoint.x += dx > 0 ? halfSize : -halfSize;
+        } else if (absY >= absX && absY >= absZ) {
+            // Conexión por cara Y
+            connectionPoint.y += dy > 0 ? halfSize : -halfSize;
+        } else {
+            // Conexión por cara Z
+            connectionPoint.z += dz > 0 ? halfSize : -halfSize;
+        }
+        
+        return connectionPoint;
+    }
+    
+    /**
+     * Get node connection point (simple center-based)
+     */
+    static getNodeConnectionPoint(node, targetElement, direction) {
+        return node.position.clone();
+    }
+    
+    /**
+     * Fallback method for unknown element types
+     */
+    static getDefaultConnectionPoint(element, targetElement) {
+        return element.position.clone();
     }
 }
 
@@ -224,7 +283,7 @@ class ConnectionPointCalculator {
  */
 class BezierCurveGenerator {
     /**
-     * Create a Bézier curve between two points
+     * Create a more natural Bézier curve between two points
      * @param {THREE.Vector3} startPoint - Start position
      * @param {THREE.Vector3} endPoint - End position
      * @param {Object} options - Curve options
@@ -232,27 +291,66 @@ class BezierCurveGenerator {
      */
     static createCurve(startPoint, endPoint, options = {}) {
         const {
-            curvature = 2.0,           // How curved the line is (lower = more curved)
-            verticalOffset = 1.5,      // How high the curve peaks
-            horizontalOffset = 0.3,    // Lateral curve offset
-            curveType = 'smooth'       // 'smooth', 'sharp', 'architectural'
+            curvature = 1.2,              // Curvatura más sutil por defecto
+            verticalOffset = 0.5,         // Offset vertical más natural
+            horizontalOffset = 0.2,       // Offset horizontal sutil
+            curveType = 'architectural'   // Architectural como default
         } = options;
         
         switch (curveType) {
-            case 'architectural':
-                return this.createArchitecturalCurve(startPoint, endPoint, options);
+            case 'smooth':
+                return this.createSmoothCurve(startPoint, endPoint, options);
             case 'sharp':
                 return this.createSharpCurve(startPoint, endPoint, options);
-            default:
-                return this.createSmoothCurve(startPoint, endPoint, options);
+            default: // 'architectural'
+                return this.createArchitecturalCurve(startPoint, endPoint, options);
         }
     }
     
     /**
-     * Create smooth flowing curve - ideal for data flow
+     * Create architectural curve - más estructurado y natural
+     */
+    static createArchitecturalCurve(startPoint, endPoint, options) {
+        const { verticalOffset = 0.8, curvature = 1.2 } = options;
+        const distance = startPoint.distanceTo(endPoint);
+        
+        // Calcular altura de la curva basada en la distancia y diferencia vertical
+        const heightDiff = Math.abs(endPoint.y - startPoint.y);
+        const curveHeight = Math.max(verticalOffset, heightDiff * 0.3);
+        
+        // Punto medio para la curva
+        const midPoint = new THREE.Vector3(
+            (startPoint.x + endPoint.x) / 2,
+            Math.max(startPoint.y, endPoint.y) + curveHeight,
+            (startPoint.z + endPoint.z) / 2
+        );
+        
+        // Control points más naturales
+        const controlPoint1 = new THREE.Vector3(
+            startPoint.x + (midPoint.x - startPoint.x) * 0.6,
+            startPoint.y + curveHeight * 0.7,
+            startPoint.z + (midPoint.z - startPoint.z) * 0.6
+        );
+        
+        const controlPoint2 = new THREE.Vector3(
+            endPoint.x + (midPoint.x - endPoint.x) * 0.6,
+            endPoint.y + curveHeight * 0.7,
+            endPoint.z + (midPoint.z - endPoint.z) * 0.6
+        );
+        
+        return new THREE.CubicBezierCurve3(
+            startPoint,
+            controlPoint1,
+            controlPoint2,
+            endPoint
+        );
+    }
+    
+    /**
+     * Create smooth flowing curve - mejorado
      */
     static createSmoothCurve(startPoint, endPoint, options) {
-        const { curvature, verticalOffset, horizontalOffset } = options;
+        const { curvature = 1.5, verticalOffset = 0.6, horizontalOffset = 0.3 } = options;
         const distance = startPoint.distanceTo(endPoint);
         
         const controlPoint1 = this.calculateControlPoint1(startPoint, endPoint, {
@@ -272,50 +370,21 @@ class BezierCurveGenerator {
     }
     
     /**
-     * Create architectural curve - more structured, right-angled approach
-     */
-    static createArchitecturalCurve(startPoint, endPoint, options) {
-        const { verticalOffset = 2.0 } = options;
-        const midY = Math.max(startPoint.y, endPoint.y) + verticalOffset;
-        
-        // Create more structured control points
-        const controlPoint1 = new THREE.Vector3(
-            startPoint.x,
-            midY,
-            startPoint.z
-        );
-        
-        const controlPoint2 = new THREE.Vector3(
-            endPoint.x,
-            midY,
-            endPoint.z
-        );
-        
-        return new THREE.CubicBezierCurve3(
-            startPoint,
-            controlPoint1,
-            controlPoint2,
-            endPoint
-        );
-    }
-    
-    /**
-     * Create sharp curve - more angular, direct connection
+     * Create sharp curve - más directo
      */
     static createSharpCurve(startPoint, endPoint, options) {
-        const { verticalOffset = 1.0 } = options;
-        const distance = startPoint.distanceTo(endPoint);
+        const { verticalOffset = 0.4 } = options;
         
         const controlPoint1 = new THREE.Vector3(
-            startPoint.x + (endPoint.x - startPoint.x) * 0.2,
+            startPoint.x + (endPoint.x - startPoint.x) * 0.3,
             startPoint.y + verticalOffset,
-            startPoint.z + (endPoint.z - startPoint.z) * 0.2
+            startPoint.z + (endPoint.z - startPoint.z) * 0.3
         );
         
         const controlPoint2 = new THREE.Vector3(
-            startPoint.x + (endPoint.x - startPoint.x) * 0.8,
+            startPoint.x + (endPoint.x - startPoint.x) * 0.7,
             endPoint.y + verticalOffset,
-            startPoint.z + (endPoint.z - startPoint.z) * 0.8
+            startPoint.z + (endPoint.z - startPoint.z) * 0.7
         );
         
         return new THREE.CubicBezierCurve3(
@@ -359,11 +428,13 @@ class ConnectionManager {
         this.scene = scene;
         this.options = {
             defaultColor: 0x94a3b8,
-            defaultOpacity: 0.7,
+            defaultOpacity: 0.8,        // Mayor opacidad por defecto
             arrowColor: 0x3b82f6,
             animationEnabled: false,
             showArrows: true,
-            lineWidth: 2,
+            lineWidth: 4,               // Mayor grosor por defecto
+            tubeRadius: 0.08,           // Radio para tubos 3D (alternativa)
+            useTubeGeometry: true,      // Usar geometría de tubo por defecto
             ...options
         };
         
@@ -378,14 +449,12 @@ class ConnectionManager {
     }
     
     /**
-     * Add a connection between two elements
-     * @param {THREE.Object3D} fromElement - Source element
-     * @param {THREE.Object3D} toElement - Target element
-     * @param {Object} options - Connection options
+     * Add a connection between two elements - MEJORADO
      */
     addConnection(fromElement, toElement, options = {}) {
-        const fromPoint = ConnectionPointCalculator.getConnectionPoint(fromElement, 'output');
-        const toPoint = ConnectionPointCalculator.getConnectionPoint(toElement, 'input');
+        // Usar los nuevos puntos de conexión basados en proximidad
+        const fromPoint = ConnectionPointCalculator.getConnectionPoint(fromElement, toElement, 'output');
+        const toPoint = ConnectionPointCalculator.getConnectionPoint(toElement, fromElement, 'input');
         
         const curveOptions = { ...this.options, ...options };
         const curve = BezierCurveGenerator.createCurve(fromPoint, toPoint, curveOptions);
@@ -418,88 +487,115 @@ class ConnectionManager {
         return `connection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
     
+    /**
+     * Create curve visual - MEJORADO con mayor grosor
+     */
     createCurveVisual(curve, options = {}, connectionId) {
         const {
             color = this.options.defaultColor,
             opacity = this.options.defaultOpacity,
-            segments = 50,
+            segments = 64,              // Más segmentos para mayor suavidad
             dashed = false,
             dashSize = 0.5,
-            gapSize = 0.2
+            gapSize = 0.2,
+            useTubeGeometry = this.options.useTubeGeometry,
+            tubeRadius = this.options.tubeRadius
         } = options;
         
-        const points = curve.getPoints(segments);
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        let geometry, material, line;
         
-        const materialOptions = {
-            color: color,
-            opacity: opacity,
-            transparent: true,
-            linewidth: this.options.lineWidth
-        };
-        
-        if (dashed) {
-            materialOptions.dashSize = dashSize;
-            materialOptions.gapSize = gapSize;
-        }
-        
-        const material = dashed 
-            ? new THREE.LineDashedMaterial(materialOptions)
-            : new THREE.LineBasicMaterial(materialOptions);
-        
-        const line = new THREE.Line(geometry, material);
-        
-        if (dashed) {
-            line.computeLineDistances();
+        if (useTubeGeometry) {
+            // Usar TubeGeometry para mayor grosor y mejor visibilidad
+            geometry = new THREE.TubeGeometry(curve, segments, tubeRadius, 8, false);
+            material = new THREE.MeshLambertMaterial({
+                color: color,
+                opacity: opacity,
+                transparent: opacity < 1,
+                side: THREE.DoubleSide
+            });
+            line = new THREE.Mesh(geometry, material);
+            line.castShadow = true;
+            line.receiveShadow = true;
+        } else {
+            // Usar LineGeometry tradicional con mayor grosor
+            const points = curve.getPoints(segments);
+            geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            const materialOptions = {
+                color: color,
+                opacity: opacity,
+                transparent: opacity < 1,
+                linewidth: this.options.lineWidth  // Mayor grosor
+            };
+            
+            if (dashed) {
+                materialOptions.dashSize = dashSize;
+                materialOptions.gapSize = gapSize;
+            }
+            
+            material = dashed 
+                ? new THREE.LineDashedMaterial(materialOptions)
+                : new THREE.LineBasicMaterial(materialOptions);
+            
+            line = new THREE.Line(geometry, material);
+            
+            if (dashed) {
+                line.computeLineDistances();
+            }
         }
         
         line.userData = { connectionId, type: 'curve' };
         this.connectionGroup.add(line);
     }
     
+    /**
+     * Create arrow - MEJORADO
+     */
     createArrow(curve, options = {}, connectionId) {
         const {
             arrowColor = this.options.arrowColor,
-            arrowSize = 0.3,
-            arrowPosition = 0.9
+            arrowSize = 0.4,            // Flecha más grande
+            arrowPosition = 0.85        // Posición ajustada
         } = options;
         
         const arrowPoint = curve.getPointAt(arrowPosition);
         const endPoint = curve.getPointAt(Math.min(arrowPosition + 0.1, 1.0));
         
         const arrowGeometry = new THREE.ConeGeometry(
-            arrowSize * 0.5, 
-            arrowSize, 
+            arrowSize * 0.6,           // Radio más grande
+            arrowSize * 1.2,           // Altura más grande
             8
         );
         const arrowMaterial = new THREE.MeshLambertMaterial({ 
             color: arrowColor,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.9              // Mayor opacidad
         });
         
         const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
         arrow.position.copy(arrowPoint);
         arrow.lookAt(endPoint);
         arrow.rotateX(Math.PI / 2);
+        arrow.castShadow = true;
         
         arrow.userData = { connectionId, type: 'arrow' };
         this.connectionGroup.add(arrow);
     }
     
+    // ... resto de métodos sin cambios ...
     createAnimationParticle(curve, connectionId) {
-        const particleGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const particleGeometry = new THREE.SphereGeometry(0.12, 8, 8); // Partícula más grande
         const particleMaterial = new THREE.MeshLambertMaterial({
             color: 0x10b981,
             emissive: 0x059669,
-            emissiveIntensity: 0.3
+            emissiveIntensity: 0.4     // Mayor intensidad
         });
         
         const particle = new THREE.Mesh(particleGeometry, particleMaterial);
         particle.userData = {
             connectionId,
             curve: curve,
-            progress: Math.random(), // Random start position
+            progress: Math.random(),
             speed: 0.01 + Math.random() * 0.02,
             type: 'particle'
         };
@@ -508,10 +604,6 @@ class ConnectionManager {
         this.animationGroup.add(particle);
     }
     
-    /**
-     * Remove a connection by ID
-     * @param {string} connectionId - Connection ID to remove
-     */
     removeConnection(connectionId) {
         // Remove visual elements
         const elementsToRemove = [];
@@ -533,7 +625,6 @@ class ConnectionManager {
         
         // Remove from arrays
         this.connections = this.connections.filter(conn => conn.id !== connectionId);
-        // Note: curves array cleanup could be added here if needed
     }
     
     updateAnimations() {
@@ -559,7 +650,6 @@ class ConnectionManager {
         this.options.animationEnabled = !this.options.animationEnabled;
         
         if (this.options.animationEnabled) {
-            // Create animation particles for existing curves
             this.curves.forEach((curve, index) => {
                 const connection = this.connections[index];
                 if (connection) {
@@ -567,7 +657,6 @@ class ConnectionManager {
                 }
             });
         } else {
-            // Remove all animation particles
             this.animationParticles.forEach(particle => {
                 this.animationGroup.remove(particle);
             });
@@ -587,6 +676,15 @@ class ConnectionManager {
         this.animationParticles = [];
         this.connections = [];
     }
+}
+
+// Export para usar en otros archivos
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { ConnectionPointCalculator, BezierCurveGenerator, ConnectionManager };
+} else {
+    window.ConnectionPointCalculator = ConnectionPointCalculator;
+    window.BezierCurveGenerator = BezierCurveGenerator;
+    window.ConnectionManager = ConnectionManager;
 }
 
 /**
