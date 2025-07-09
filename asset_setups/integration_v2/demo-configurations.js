@@ -47,7 +47,8 @@ const hospitalConnections = [
             curveType: 'architectural',
             verticalOffset: 0.6,     
             useTubeGeometry: true,
-            tubeRadius: 0.1          
+            tubeRadius: 0.1,
+            showArrows: false          // disable arrows to fix positioning issues
         }
     },
     {
@@ -59,7 +60,8 @@ const hospitalConnections = [
             curveType: 'architectural',
             verticalOffset: 0.8,
             useTubeGeometry: true,
-            tubeRadius: 0.09
+            tubeRadius: 0.09,
+            showArrows: false          // disable arrows to fix positioning issues
         }
     },
     {
@@ -71,7 +73,8 @@ const hospitalConnections = [
             curveType: 'architectural',
             verticalOffset: 0.7,
             useTubeGeometry: true,
-            tubeRadius: 0.11
+            tubeRadius: 0.11,
+            showArrows: false          // disable arrows to fix positioning issues
         }
     }
 ];
@@ -111,7 +114,8 @@ const networkConnections = [
             curveType: 'architectural',
             verticalOffset: 0.5,
             useTubeGeometry: true,
-            tubeRadius: 0.08
+            tubeRadius: 0.08,
+            showArrows: false          // disable arrows to fix positioning issues
         }
     },
     {
@@ -123,7 +127,8 @@ const networkConnections = [
             curveType: 'architectural',
             verticalOffset: 0.6,
             useTubeGeometry: true,
-            tubeRadius: 0.09
+            tubeRadius: 0.09,
+            showArrows: false          // disable arrows to fix positioning issues
         }
     }
 ];
@@ -137,19 +142,15 @@ document.addEventListener('DOMContentLoaded', function() {
         data: hospitalData,
         connections: hospitalConnections,
         options: {
-            showControls: true,
-            showLegend: true,
-            showConnectionInfo: true,
+            showControls: false,           // no controls
+            showLegend: false,             // no legend
+            showConnectionInfo: false,     // clean up UI
             enableInteraction: true,
-            useTubeGeometry: true,      // Activar tubos 3D por defecto
-            tubeRadius: 0.08,           // Radio por defecto
-            lineWidth: 4,               // Grosor de línea por defecto
-            legendItems: [
-                { color: '#10b981', label: 'User Interface Layer' },
-                { color: '#f59e0b', label: 'Business Logic Layer' },
-                { color: '#8b5cf6', label: 'Output Layer (Central Cube)' },
-                { color: '#06b6d4', label: 'Database Layer' }
-            ]
+            animationEnabled: true,        // enable animated flow
+            useTubeGeometry: true,
+            tubeRadius: 0.08,
+            lineWidth: 4,
+            showArrows: false              // disable arrows globally
         }
     });
     
@@ -159,17 +160,14 @@ document.addEventListener('DOMContentLoaded', function() {
         data: networkData,
         connections: networkConnections,
         options: {
-            showControls: false,
-            showLegend: true,
-            showConnectionInfo: false,
+            showControls: false,           // no controls
+            showLegend: false,             // no legend
+            showConnectionInfo: false,     // clean up UI
             enableInteraction: true,
+            animationEnabled: true,        // enable animated flow
             useTubeGeometry: true,
             tubeRadius: 0.07,
-            legendItems: [
-                { color: '#3b82f6', label: 'Frontend Applications' },
-                { color: '#10b981', label: 'API Gateway' },
-                { color: '#8b5cf6', label: 'Backend Services' }
-            ]
+            showArrows: false              // disable arrows globally
         }
     });
     
