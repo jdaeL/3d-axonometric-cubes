@@ -1,9 +1,9 @@
 /**
  * ===== DEMO CONFIGURATIONS =====
- * Example configurations for different diagram types
+ * configurations for different diagram types
  */
 
-// Hospital Architecture Diagram (Original Complex Example)
+// Hospital Architecture Diagram
 const hospitalData = {
     userInterface: {
         platform: { x: -6, z: 6, width: 8, depth: 4 },
@@ -23,7 +23,7 @@ const hospitalData = {
         ]
     },
     output: {
-        platform: null, // No platform - independent central cube
+        platform: null, // no platform - independent central cube
         components: [
             { name: "Output Tables", x: 4, z: 1, info: "Central processing hub - acts as independent cube without platform" }
         ]
@@ -44,9 +44,10 @@ const hospitalConnections = [
         options: { 
             color: 0x10b981, 
             opacity: 0.8, 
-            curvature: 2.0, 
-            verticalOffset: 2.5,
-            curveType: 'architectural'
+            curveType: 'architectural',
+            verticalOffset: 0.6,     
+            useTubeGeometry: true,
+            tubeRadius: 0.1          
         }
     },
     {
@@ -55,9 +56,10 @@ const hospitalConnections = [
         options: { 
             color: 0xf59e0b, 
             opacity: 0.8, 
-            curvature: 2.2, 
-            verticalOffset: 2.0,
-            curveType: 'architectural'
+            curveType: 'architectural',
+            verticalOffset: 0.8,
+            useTubeGeometry: true,
+            tubeRadius: 0.09
         }
     },
     {
@@ -66,9 +68,10 @@ const hospitalConnections = [
         options: { 
             color: 0x8b5cf6, 
             opacity: 0.8, 
-            curvature: 2.5, 
-            verticalOffset: 2.8,
-            curveType: 'architectural'
+            curveType: 'architectural',
+            verticalOffset: 0.7,
+            useTubeGeometry: true,
+            tubeRadius: 0.11
         }
     }
 ];
@@ -83,7 +86,7 @@ const networkData = {
         ]
     },
     backend: {
-        platform: null, // Central processing node
+        platform: null, // central processing node
         components: [
             { name: "API Gateway", x: 0, z: 0, info: "Central API management and routing service" }
         ]
@@ -104,9 +107,11 @@ const networkConnections = [
         to: { type: 'component', name: 'API Gateway' },
         options: { 
             color: 0x3b82f6, 
-            opacity: 0.8,
+            opacity: 0.85,
             curveType: 'architectural',
-            verticalOffset: 1.5
+            verticalOffset: 0.5,
+            useTubeGeometry: true,
+            tubeRadius: 0.08
         }
     },
     {
@@ -114,9 +119,11 @@ const networkConnections = [
         to: { type: 'platform', layer: 'services' },
         options: { 
             color: 0x10b981, 
-            opacity: 0.8,
+            opacity: 0.85,
             curveType: 'architectural',
-            verticalOffset: 1.8
+            verticalOffset: 0.6,
+            useTubeGeometry: true,
+            tubeRadius: 0.09
         }
     }
 ];
@@ -134,9 +141,12 @@ document.addEventListener('DOMContentLoaded', function() {
             showLegend: true,
             showConnectionInfo: true,
             enableInteraction: true,
+            useTubeGeometry: true,      // Activar tubos 3D por defecto
+            tubeRadius: 0.08,           // Radio por defecto
+            lineWidth: 4,               // Grosor de línea por defecto
             legendItems: [
                 { color: '#10b981', label: 'User Interface Layer' },
-                { color: '#f59e0b', label: 'Calculators Layer' },
+                { color: '#f59e0b', label: 'Business Logic Layer' },
                 { color: '#8b5cf6', label: 'Output Layer (Central Cube)' },
                 { color: '#06b6d4', label: 'Database Layer' }
             ]
@@ -153,6 +163,8 @@ document.addEventListener('DOMContentLoaded', function() {
             showLegend: true,
             showConnectionInfo: false,
             enableInteraction: true,
+            useTubeGeometry: true,
+            tubeRadius: 0.07,
             legendItems: [
                 { color: '#3b82f6', label: 'Frontend Applications' },
                 { color: '#10b981', label: 'API Gateway' },
