@@ -3,7 +3,7 @@
  * Modular 3D architectural diagram system using Three.js
  * 
  * @author jdael
- * @version 2.0
+ * @version 2.1
  */
 
 /**
@@ -81,14 +81,16 @@ class SceneManager {
         
         if (this.options.enableShadows) {
             directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.mapSize.width = 4096;
+            directionalLight.shadow.mapSize.height = 4096;
             directionalLight.shadow.camera.near = 0.1;
             directionalLight.shadow.camera.far = 100;
-            directionalLight.shadow.camera.left = -30;
-            directionalLight.shadow.camera.right = 30;
-            directionalLight.shadow.camera.top = 30;
-            directionalLight.shadow.camera.bottom = -30;
+            directionalLight.shadow.camera.left = -50;
+            directionalLight.shadow.camera.right = 50;
+            directionalLight.shadow.camera.top = 50;
+            directionalLight.shadow.camera.bottom = -50;
+            directionalLight.shadow.bias = -0.0001;
+            directionalLight.shadow.normalBias = 0.02;
         }
         
         this.scene.add(directionalLight);
@@ -97,11 +99,10 @@ class SceneManager {
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
         fillLight.position.set(-10, 10, -10);
         this.scene.add(fillLight);
+        
+        this.initGroundPlane();
     }
     
-    /**
-     * Set camera to isometric view - ideal for architecture diagrams
-     */
     setIsometricView() {
         const distance = this.options.cameraDistance;
         this.camera.position.set(
@@ -112,20 +113,37 @@ class SceneManager {
         this.camera.lookAt(-1, 0, 1);
     }
     
-    /**
-     * Set camera to top-down view
-     */
     setTopView() {
         this.camera.position.set(-1, 25, 1);
         this.camera.lookAt(-1, 0, 1);
     }
     
-    /**
-     * Set camera to side view
-     */
     setSideView() {
         this.camera.position.set(25, 5, 0);
         this.camera.lookAt(0, 0, 0);
+    }
+    
+    initGroundPlane() {
+        if (!this.options.enableShadows) return;
+        
+        const groundSize = 200;
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
+        
+        const groundMaterial = new THREE.ShadowMaterial({
+            opacity: 0.15,
+            transparent: true,
+            color: 0x000000
+        });
+        
+        this.groundPlane = new THREE.Mesh(groundGeometry, groundMaterial);
+        
+        this.groundPlane.rotation.x = -Math.PI / 2;
+        this.groundPlane.position.y = -1.5;
+        
+        this.groundPlane.receiveShadow = true;
+        this.groundPlane.castShadow = false;
+        
+        this.scene.add(this.groundPlane);
     }
     
     bindEvents() {
@@ -152,6 +170,13 @@ class SceneManager {
     
     dispose() {
         window.removeEventListener('resize', this.resizeHandler);
+        
+        if (this.groundPlane) {
+            this.scene.remove(this.groundPlane);
+            this.groundPlane.geometry.dispose();
+            this.groundPlane.material.dispose();
+        }
+        
         this.renderer.dispose();
         if (this.container.contains(this.renderer.domElement)) {
             this.container.removeChild(this.renderer.domElement);
@@ -163,17 +188,9 @@ class SceneManager {
  * Connection Point Calculator - Determines optimal connection points for different element types
  */
 class ConnectionPointCalculator {
-    /**
-     * Get connection point for an element based on the closest edge to target
-     * @param {THREE.Object3D} element - The 3D element
-     * @param {THREE.Object3D} targetElement - The target element to connect to
-     * @param {string} direction - Connection direction ('input', 'output', 'center')
-     * @returns {THREE.Vector3} Connection point in 3D space
-     */
     static getConnectionPoint(element, targetElement, direction = 'center') {
         const userData = element.userData;
         
-        // Calcular el punto de conexión basado en el elemento más cercano
         switch (userData.type) {
             case 'platform':
                 return this.getPlatformConnectionPoint(element, targetElement, direction);
@@ -186,77 +203,71 @@ class ConnectionPointCalculator {
         }
     }
     
-    /**
-     * Get platform connection point on the closest edge to target
-     */
     static getPlatformConnectionPoint(platform, targetElement, direction) {
         const platformPos = platform.position;
         const targetPos = targetElement.position;
         
-        // Obtener dimensiones de la plataforma
         const geometry = platform.geometry;
         const width = geometry.parameters.width;
         const depth = geometry.parameters.depth;
         const height = geometry.parameters.height;
         
-        // Calcular el punto en el borde más cercano al target
         const dx = targetPos.x - platformPos.x;
         const dz = targetPos.z - platformPos.z;
         
         let connectionX, connectionZ;
         
-        // Determinar qué lado está más cerca
         const absX = Math.abs(dx);
         const absZ = Math.abs(dz);
         
         if (absX > absZ) {
-            // Conexión por el lado X (izquierda o derecha)
             connectionX = platformPos.x + (dx > 0 ? width/2 : -width/2);
             connectionZ = platformPos.z + Math.max(-depth/2, Math.min(depth/2, dz));
         } else {
-            // Conexión por el lado Z (adelante o atrás)
             connectionX = platformPos.x + Math.max(-width/2, Math.min(width/2, dx));
             connectionZ = platformPos.z + (dz > 0 ? depth/2 : -depth/2);
         }
         
-        // Altura: ligeramente por encima de la superficie de la plataforma
         const connectionY = platformPos.y + height/2 + 0.1;
         
         return new THREE.Vector3(connectionX, connectionY, connectionZ);
     }
     
-    /**
-     * Get component connection point on the closest face to target
-     */
     static getComponentConnectionPoint(component, targetElement, direction) {
         const componentPos = component.position;
         const targetPos = targetElement.position;
+        const userData = component.userData;
         
-        // Obtener tamaño del componente (asumiendo cubo)
-        const size = component.geometry.parameters.width || 1.5;
+        // Handle database cylinder components
+        if (userData.isDatabaseComponent) {
+            return this.getCylinderConnectionPoint(component, targetElement);
+        }
+        
+        // FIXED: Better connection points for standalone cubes (no platform)
+        if (!userData.hasPlataform) {
+            // For standalone cubes, always connect to the geometric center faces
+            return this.getStandaloneCubeConnectionPoint(component, targetElement);
+        }
+        
+        // Regular components with platform
+        const size = 1.5;
         const halfSize = size / 2;
         
-        // Calcular dirección hacia el target
         const dx = targetPos.x - componentPos.x;
         const dy = targetPos.y - componentPos.y;
         const dz = targetPos.z - componentPos.z;
         
-        // Encontrar la cara más cercana
         const absX = Math.abs(dx);
         const absY = Math.abs(dy);
         const absZ = Math.abs(dz);
         
         let connectionPoint = componentPos.clone();
         
-        // Determinar qué eje tiene la mayor diferencia
         if (absX >= absY && absX >= absZ) {
-            // Conexión por cara X
             connectionPoint.x += dx > 0 ? halfSize : -halfSize;
         } else if (absY >= absX && absY >= absZ) {
-            // Conexión por cara Y
             connectionPoint.y += dy > 0 ? halfSize : -halfSize;
         } else {
-            // Conexión por cara Z
             connectionPoint.z += dz > 0 ? halfSize : -halfSize;
         }
         
@@ -264,15 +275,93 @@ class ConnectionPointCalculator {
     }
     
     /**
-     * Get node connection point (simple center-based)
+     * Connection points for standalone cubes (no platform)
+     * Ensures connections go to the exact geometric center of faces
      */
+    static getStandaloneCubeConnectionPoint(cube, targetElement) {
+        const cubePos = cube.position;
+        const targetPos = targetElement.position;
+        
+        // Use geometry bounding box for precise dimensions
+        cube.geometry.computeBoundingBox();
+        const boundingBox = cube.geometry.boundingBox;
+        
+        // Get actual dimensions from the geometry (accounts for beveled edges)
+        const actualWidth = boundingBox.max.x - boundingBox.min.x;
+        const actualHeight = boundingBox.max.y - boundingBox.min.y;
+        const actualDepth = boundingBox.max.z - boundingBox.min.z;
+        
+        const halfWidth = actualWidth / 2;
+        const halfHeight = actualHeight / 2;
+        const halfDepth = actualDepth / 2;
+        
+        // Calculate direction to target
+        const dx = targetPos.x - cubePos.x;
+        const dy = targetPos.y - cubePos.y;
+        const dz = targetPos.z - cubePos.z;
+        
+        // Find the face that's closest to the target
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+        const absZ = Math.abs(dz);
+        
+        let connectionPoint = cubePos.clone();
+        
+        // Use actual geometry dimensions for precise face connections
+        if (absX >= absY && absX >= absZ) {
+            // Connect to X face (left or right side) - exact center
+            connectionPoint.x += dx > 0 ? halfWidth : -halfWidth;
+            connectionPoint.y = cubePos.y; // Exact center Y
+            connectionPoint.z = cubePos.z; // Exact center Z
+        } else if (absY >= absX && absY >= absZ) {
+            // Connect to Y face (top or bottom) - exact center
+            connectionPoint.y += dy > 0 ? halfHeight : -halfHeight;
+            connectionPoint.x = cubePos.x; // Exact center X
+            connectionPoint.z = cubePos.z; // Exact center Z
+        } else {
+            // Connect to Z face (front or back) - exact center
+            connectionPoint.z += dz > 0 ? halfDepth : -halfDepth;
+            connectionPoint.x = cubePos.x; // Exact center X
+            connectionPoint.y = cubePos.y; // Exact center Y
+        }
+        
+        return connectionPoint;
+    }
+    
+    static getCylinderConnectionPoint(cylinder, targetElement) {
+        const cylinderPos = cylinder.position;
+        const targetPos = targetElement.position;
+        
+        const radius = 0.9;
+        const height = 1.8;
+        
+        const dx = targetPos.x - cylinderPos.x;
+        const dz = targetPos.z - cylinderPos.z;
+        const dy = targetPos.y - cylinderPos.y;
+        
+        const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+        
+        let connectionPoint = cylinderPos.clone();
+        
+        if (Math.abs(dy) > horizontalDistance) {
+            connectionPoint.y += dy > 0 ? height/2 : -height/2;
+        } else {
+            if (horizontalDistance > 0) {
+                const normalizedX = dx / horizontalDistance;
+                const normalizedZ = dz / horizontalDistance;
+                
+                connectionPoint.x += normalizedX * radius;
+                connectionPoint.z += normalizedZ * radius;
+            }
+        }
+        
+        return connectionPoint;
+    }
+    
     static getNodeConnectionPoint(node, targetElement, direction) {
         return node.position.clone();
     }
     
-    /**
-     * Fallback method for unknown element types
-     */
     static getDefaultConnectionPoint(element, targetElement) {
         return element.position.clone();
     }
@@ -282,19 +371,12 @@ class ConnectionPointCalculator {
  * Bézier Curve Generator - Creates smooth curves between connection points
  */
 class BezierCurveGenerator {
-    /**
-     * Create a more natural Bézier curve between two points
-     * @param {THREE.Vector3} startPoint - Start position
-     * @param {THREE.Vector3} endPoint - End position
-     * @param {Object} options - Curve options
-     * @returns {THREE.CubicBezierCurve3} Generated curve
-     */
     static createCurve(startPoint, endPoint, options = {}) {
         const {
-            curvature = 1.2,              // Curvatura más sutil por defecto
-            verticalOffset = 0.5,         // Offset vertical más natural
-            horizontalOffset = 0.2,       // Offset horizontal sutil
-            curveType = 'architectural'   // Architectural como default
+            curvature = 1.2,
+            verticalOffset = 0.5,
+            horizontalOffset = 0.2,
+            curveType = 'architectural'
         } = options;
         
         switch (curveType) {
@@ -307,25 +389,19 @@ class BezierCurveGenerator {
         }
     }
     
-    /**
-     * Create architectural curve - más estructurado y natural
-     */
     static createArchitecturalCurve(startPoint, endPoint, options) {
         const { verticalOffset = 0.8, curvature = 1.2 } = options;
         const distance = startPoint.distanceTo(endPoint);
         
-        // Calcular altura de la curva basada en la distancia y diferencia vertical
         const heightDiff = Math.abs(endPoint.y - startPoint.y);
         const curveHeight = Math.max(verticalOffset, heightDiff * 0.3);
         
-        // Punto medio para la curva
         const midPoint = new THREE.Vector3(
             (startPoint.x + endPoint.x) / 2,
             Math.max(startPoint.y, endPoint.y) + curveHeight,
             (startPoint.z + endPoint.z) / 2
         );
         
-        // Control points más naturales
         const controlPoint1 = new THREE.Vector3(
             startPoint.x + (midPoint.x - startPoint.x) * 0.6,
             startPoint.y + curveHeight * 0.7,
@@ -346,9 +422,6 @@ class BezierCurveGenerator {
         );
     }
     
-    /**
-     * Create smooth flowing curve - mejorado
-     */
     static createSmoothCurve(startPoint, endPoint, options) {
         const { curvature = 1.5, verticalOffset = 0.6, horizontalOffset = 0.3 } = options;
         const distance = startPoint.distanceTo(endPoint);
@@ -369,9 +442,6 @@ class BezierCurveGenerator {
         );
     }
     
-    /**
-     * Create sharp curve - más directo
-     */
     static createSharpCurve(startPoint, endPoint, options) {
         const { verticalOffset = 0.4 } = options;
         
@@ -428,13 +498,13 @@ class ConnectionManager {
         this.scene = scene;
         this.options = {
             defaultColor: 0x94a3b8,
-            defaultOpacity: 0.8,        // Mayor opacidad por defecto
+            defaultOpacity: 0.8,
             arrowColor: 0x3b82f6,
-            animationEnabled: false,
-            showArrows: true,
-            lineWidth: 4,               // Mayor grosor por defecto
-            tubeRadius: 0.08,           // Radio para tubos 3D (alternativa)
-            useTubeGeometry: true,      // Usar geometría de tubo por defecto
+            animationEnabled: true,
+            showArrows: false,
+            lineWidth: 4,
+            tubeRadius: 0.08,
+            useTubeGeometry: true,
             ...options
         };
         
@@ -448,11 +518,7 @@ class ConnectionManager {
         this.connections = [];
     }
     
-    /**
-     * Add a connection between two elements - MEJORADO
-     */
     addConnection(fromElement, toElement, options = {}) {
-        // Usar los nuevos puntos de conexión basados en proximidad
         const fromPoint = ConnectionPointCalculator.getConnectionPoint(fromElement, toElement, 'output');
         const toPoint = ConnectionPointCalculator.getConnectionPoint(toElement, fromElement, 'input');
         
@@ -472,7 +538,7 @@ class ConnectionManager {
         
         this.createCurveVisual(curve, curveOptions, connection.id);
         
-        if (curveOptions.showArrows !== false) {
+        if (curveOptions.showArrows === true) {
             this.createArrow(curve, curveOptions, connection.id);
         }
         
@@ -487,14 +553,11 @@ class ConnectionManager {
         return `connection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
     
-    /**
-     * Create curve visual - MEJORADO con mayor grosor
-     */
     createCurveVisual(curve, options = {}, connectionId) {
         const {
             color = this.options.defaultColor,
             opacity = this.options.defaultOpacity,
-            segments = 64,              // Más segmentos para mayor suavidad
+            segments = 64,
             dashed = false,
             dashSize = 0.5,
             gapSize = 0.2,
@@ -505,7 +568,6 @@ class ConnectionManager {
         let geometry, material, line;
         
         if (useTubeGeometry) {
-            // Usar TubeGeometry para mayor grosor y mejor visibilidad
             geometry = new THREE.TubeGeometry(curve, segments, tubeRadius, 8, false);
             material = new THREE.MeshLambertMaterial({
                 color: color,
@@ -517,7 +579,6 @@ class ConnectionManager {
             line.castShadow = true;
             line.receiveShadow = true;
         } else {
-            // Usar LineGeometry tradicional con mayor grosor
             const points = curve.getPoints(segments);
             geometry = new THREE.BufferGeometry().setFromPoints(points);
             
@@ -525,7 +586,7 @@ class ConnectionManager {
                 color: color,
                 opacity: opacity,
                 transparent: opacity < 1,
-                linewidth: this.options.lineWidth  // Mayor grosor
+                linewidth: this.options.lineWidth
             };
             
             if (dashed) {
@@ -548,33 +609,32 @@ class ConnectionManager {
         this.connectionGroup.add(line);
     }
     
-    /**
-     * Create arrow - MEJORADO
-     */
     createArrow(curve, options = {}, connectionId) {
         const {
             arrowColor = this.options.arrowColor,
-            arrowSize = 0.4,            // Flecha más grande
-            arrowPosition = 0.85        // Posición ajustada
+            arrowSize = 0.4,
+            arrowPosition = 0.95
         } = options;
         
         const arrowPoint = curve.getPointAt(arrowPosition);
-        const endPoint = curve.getPointAt(Math.min(arrowPosition + 0.1, 1.0));
+        const previousPoint = curve.getPointAt(Math.max(arrowPosition - 0.05, 0));
         
         const arrowGeometry = new THREE.ConeGeometry(
-            arrowSize * 0.6,           // Radio más grande
-            arrowSize * 1.2,           // Altura más grande
+            arrowSize * 0.6,
+            arrowSize * 1.2,
             8
         );
         const arrowMaterial = new THREE.MeshLambertMaterial({ 
             color: arrowColor,
             transparent: true,
-            opacity: 0.9              // Mayor opacidad
+            opacity: 0.9
         });
         
         const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
         arrow.position.copy(arrowPoint);
-        arrow.lookAt(endPoint);
+        
+        const direction = new THREE.Vector3().subVectors(arrowPoint, previousPoint).normalize();
+        arrow.lookAt(arrowPoint.clone().add(direction));
         arrow.rotateX(Math.PI / 2);
         arrow.castShadow = true;
         
@@ -582,13 +642,12 @@ class ConnectionManager {
         this.connectionGroup.add(arrow);
     }
     
-    // ... resto de métodos sin cambios ...
     createAnimationParticle(curve, connectionId) {
-        const particleGeometry = new THREE.SphereGeometry(0.12, 8, 8); // Partícula más grande
+        const particleGeometry = new THREE.SphereGeometry(0.12, 8, 8);
         const particleMaterial = new THREE.MeshLambertMaterial({
             color: 0x10b981,
             emissive: 0x059669,
-            emissiveIntensity: 0.4     // Mayor intensidad
+            emissiveIntensity: 0.4
         });
         
         const particle = new THREE.Mesh(particleGeometry, particleMaterial);
@@ -605,7 +664,6 @@ class ConnectionManager {
     }
     
     removeConnection(connectionId) {
-        // Remove visual elements
         const elementsToRemove = [];
         this.connectionGroup.traverse((child) => {
             if (child.userData.connectionId === connectionId) {
@@ -614,7 +672,6 @@ class ConnectionManager {
         });
         elementsToRemove.forEach(element => this.connectionGroup.remove(element));
         
-        // Remove animation particles
         const particlesToRemove = this.animationParticles.filter(
             particle => particle.userData.connectionId === connectionId
         );
@@ -623,7 +680,6 @@ class ConnectionManager {
             this.animationParticles.splice(this.animationParticles.indexOf(particle), 1);
         });
         
-        // Remove from arrays
         this.connections = this.connections.filter(conn => conn.id !== connectionId);
     }
     
@@ -640,7 +696,6 @@ class ConnectionManager {
             const point = particle.userData.curve.getPointAt(particle.userData.progress);
             particle.position.copy(point);
             
-            // Pulsing effect
             const pulse = Math.sin(particle.userData.progress * Math.PI * 4) * 0.3 + 0.7;
             particle.scale.setScalar(pulse);
         });
@@ -696,15 +751,19 @@ class UIManager {
         this.infoCard = null;
         this.controls = null;
         this.legend = null;
+        // IMPROVED: Info card timing control
+        this.infoCardTimeout = null;
+        this.showDelay = 300; // 300ms delay before showing
+        this.hideDelay = 150; // 150ms delay before hiding
         this.createUI();
     }
     
     createUI() {
         this.createInfoCard();
-        if (this.diagram.options.showControls) {
+        if (this.diagram.options.showControls === true) {
             this.createControls();
         }
-        if (this.diagram.options.showLegend) {
+        if (this.diagram.options.showLegend === true) {
             this.createLegend();
         }
     }
@@ -713,11 +772,107 @@ class UIManager {
         this.infoCard = document.createElement('div');
         this.infoCard.className = 'diagram-info-card';
         this.infoCard.innerHTML = `
-            <div class="layer"></div>
-            <div class="title"></div>
-            <div class="description"></div>
+            <div class="glass-overlay"></div>
+            <div class="card-content">
+                <div class="layer"></div>
+                <div class="title"></div>
+                <div class="description"></div>
+            </div>
         `;
+        
+        this.applyGlassmorphismStyles();
         this.diagram.container.appendChild(this.infoCard);
+    }
+    
+    applyGlassmorphismStyles() {
+        const styles = `
+            .diagram-info-card {
+                position: absolute;
+                min-width: 260px;
+                max-width: 340px;
+                background: rgba(255, 255, 255, 0.12);
+                backdrop-filter: blur(25px) saturate(200%);
+                -webkit-backdrop-filter: blur(25px) saturate(200%);
+                border-radius: 20px;
+                border: 1.5px solid rgba(255, 255, 255, 0.25);
+                padding: 0;
+                overflow: hidden;
+                color: #1e293b;
+                font-size: 14px;
+                opacity: 0;
+                transform: scale(0.95) translateY(15px);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                pointer-events: none;
+                z-index: 100;
+                box-shadow: 
+                    0 25px 50px rgba(31, 38, 135, 0.2),
+                    0 15px 35px rgba(31, 38, 135, 0.15),
+                    0 5px 15px rgba(0, 0, 0, 0.1),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+            }
+
+            .diagram-info-card.visible {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+
+            .diagram-info-card .glass-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 40%;
+                background: linear-gradient(135deg, 
+                    rgba(255, 255, 255, 0.3) 0%, 
+                    rgba(255, 255, 255, 0.1) 50%,
+                    rgba(255, 255, 255, 0.05) 100%);
+                border-radius: 20px 20px 0 0;
+                pointer-events: none;
+            }
+
+            .diagram-info-card .card-content {
+                position: relative;
+                z-index: 2;
+                padding: 24px;
+            }
+
+            .diagram-info-card .title {
+                font-weight: 700;
+                font-size: 18px;
+                margin-bottom: 10px;
+                color: #0f172a;
+                text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
+                letter-spacing: -0.02em;
+            }
+
+            .diagram-info-card .layer {
+                font-size: 11px;
+                color: #64748b;
+                margin-bottom: 12px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                font-weight: 600;
+                text-shadow: 0 1px 3px rgba(255, 255, 255, 0.6);
+                opacity: 0.8;
+            }
+
+            .diagram-info-card .description {
+                color: #374151;
+                line-height: 1.5;
+                font-size: 13px;
+                text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+                font-weight: 400;
+            }
+        `;
+        
+        let styleSheet = document.getElementById('glassmorphism-styles');
+        if (!styleSheet) {
+            styleSheet = document.createElement('style');
+            styleSheet.id = 'glassmorphism-styles';
+            styleSheet.textContent = styles;
+            document.head.appendChild(styleSheet);
+        }
     }
     
     createControls() {
@@ -753,7 +908,6 @@ class UIManager {
             </div>`
         ).join('');
         
-        // Add connection info if enabled
         if (this.diagram.options.showConnectionInfo) {
             legendHTML += `
                 <div class="legend-separator">Connection Rules</div>
@@ -769,15 +923,70 @@ class UIManager {
         this.diagram.container.appendChild(this.legend);
     }
     
-    updateInfoCard(component, mouseEvent) {
+    /**
+     * IMPROVED: Better info card timing and more concise content
+     */
+    showInfoCard(object, mouseEvent) {
+        // Clear any existing timeout
+        if (this.infoCardTimeout) {
+            clearTimeout(this.infoCardTimeout);
+        }
+        
+        // Show with delay
+        this.infoCardTimeout = setTimeout(() => {
+            this.updateInfoCard(object, mouseEvent);
+        }, this.showDelay);
+    }
+    
+    hideInfoCard() {
+        // Clear any existing timeout
+        if (this.infoCardTimeout) {
+            clearTimeout(this.infoCardTimeout);
+        }
+        
+        // Hide with delay
+        this.infoCardTimeout = setTimeout(() => {
+            this.infoCard.classList.remove('visible');
+        }, this.hideDelay);
+    }
+    
+    updateInfoCard(object, mouseEvent) {
         const layer = this.infoCard.querySelector('.layer');
         const title = this.infoCard.querySelector('.title');
         const description = this.infoCard.querySelector('.description');
         
-        layer.textContent = component.userData.layer ? 
-            component.userData.layer.replace(/([A-Z])/g, ' $1').trim() : '';
-        title.textContent = component.userData.name || component.userData.type || 'Component';
-        description.textContent = component.userData.info || 'No description available';
+        const objectData = object.userData;
+        
+        // Set layer text
+        if (objectData.type === 'platform') {
+            layer.textContent = `${objectData.layer.toUpperCase()} LAYER`;
+        } else {
+            layer.textContent = objectData.layer ? 
+                objectData.layer.replace(/([A-Z])/g, ' $1').trim().toUpperCase() : '';
+        }
+        
+        // Set title
+        title.textContent = objectData.name || objectData.type || 'Component';
+        
+        // IMPROVED: More concise and precise descriptions
+        if (objectData.type === 'platform') {
+            description.textContent = `Foundation layer for ${objectData.layer} components`;
+        } else {
+            // More concise component descriptions
+            let conciseInfo = objectData.info || 'Component';
+            
+            // Remove redundant technical details for cleaner display
+            conciseInfo = conciseInfo.split('•')[0].trim(); // Take only the main description before bullet points
+            
+            // Add shape info more concisely
+            if (objectData.isDatabaseComponent) {
+                conciseInfo += ' • Database';
+            } else if (!objectData.hasPlataform) {
+                conciseInfo += ' • Central Hub';
+            }
+            
+            description.textContent = conciseInfo;
+        }
         
         // Position card relative to container
         const rect = this.diagram.container.getBoundingClientRect();
@@ -795,11 +1004,10 @@ class UIManager {
         this.infoCard.classList.add('visible');
     }
     
-    hideInfoCard() {
-        this.infoCard.classList.remove('visible');
-    }
-    
     dispose() {
+        if (this.infoCardTimeout) {
+            clearTimeout(this.infoCardTimeout);
+        }
         if (this.infoCard) this.diagram.container.removeChild(this.infoCard);
         if (this.controls) this.diagram.container.removeChild(this.controls);
         if (this.legend) this.diagram.container.removeChild(this.legend);
@@ -819,6 +1027,8 @@ class InteractionManager {
         this.originalMaterials = new Map();
         this.targetScales = new Map();
         this.targetPositions = new Map();
+        // IMPROVED: Better hover timing
+        this.hoverTimeout = null;
         
         this.bindEvents();
         this.setupMaterials();
@@ -856,26 +1066,31 @@ class InteractionManager {
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         
         this.raycaster.setFromCamera(this.mouse, this.diagram.sceneManager.camera);
-        const intersects = this.raycaster.intersectObjects(this.diagram.components);
+        
+        const interactableObjects = [...this.diagram.components];
+        Object.values(this.diagram.platforms).forEach(platform => {
+            if (platform) interactableObjects.push(platform);
+        });
+        
+        const intersects = this.raycaster.intersectObjects(interactableObjects);
         
         if (intersects.length > 0) {
-            const component = intersects[0].object;
+            const object = intersects[0].object;
             
-            if (this.hoveredComponent !== component && component !== this.selectedComponent) {
+            if (this.hoveredComponent !== object && object !== this.selectedComponent) {
                 // Reset previous hover
                 if (this.hoveredComponent && this.hoveredComponent !== this.selectedComponent) {
                     this.resetComponentState(this.hoveredComponent);
                 }
                 
                 // Set new hover
-                this.hoveredComponent = component;
-                component.material = this.hoverMaterial.clone();
+                this.hoveredComponent = object;
+                object.material = this.hoverMaterial.clone();
                 
-                // Smooth hover animation
-                this.targetScales.set(component, new THREE.Vector3(1.15, 1.15, 1.15));
+                this.targetScales.set(object, new THREE.Vector3(1.15, 1.15, 1.15));
                 
-                // Update info card
-                this.diagram.uiManager.updateInfoCard(component, event);
+                // IMPROVED: Use delayed info card display
+                this.diagram.uiManager.showInfoCard(object, event);
             }
         } else {
             if (this.hoveredComponent && this.hoveredComponent !== this.selectedComponent) {
@@ -892,65 +1107,162 @@ class InteractionManager {
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         
         this.raycaster.setFromCamera(this.mouse, this.diagram.sceneManager.camera);
-        const intersects = this.raycaster.intersectObjects(this.diagram.components);
+        
+        const interactableObjects = [...this.diagram.components];
+        Object.values(this.diagram.platforms).forEach(platform => {
+            if (platform) interactableObjects.push(platform);
+        });
+        
+        const intersects = this.raycaster.intersectObjects(interactableObjects);
         
         // Reset previous selection
         if (this.selectedComponent) {
             this.resetComponentState(this.selectedComponent);
+            // IMPROVED: Reset platform components when deselecting platform
+            if (this.selectedComponent.userData.type === 'platform') {
+                this.resetPlatformComponents(this.selectedComponent);
+            }
         }
         
         if (intersects.length > 0) {
-            const component = intersects[0].object;
-            this.selectedComponent = component;
+            const object = intersects[0].object;
+            this.selectedComponent = object;
             
-            // Enhanced selected state
-            component.material = this.selectedMaterial.clone();
-            component.material.emissiveIntensity = 0.7;
+            object.material = this.selectedMaterial.clone();
+            object.material.emissiveIntensity = 0.7;
             
-            // More dramatic selection animation
-            this.targetScales.set(component, new THREE.Vector3(1.3, 1.8, 1.3));
+            // IMPROVED: Platform floating animation with components
+            if (object.userData.type === 'platform') {
+                this.animatePlatformWithComponents(object);
+            } else {
+                const scaleMultiplier = object.userData.type === 'platform' ? 1.1 : 1.3;
+                const yMultiplier = object.userData.type === 'platform' ? 1.05 : 1.8;
+                this.targetScales.set(object, new THREE.Vector3(scaleMultiplier, yMultiplier, scaleMultiplier));
+            }
             
-            this.diagram.uiManager.updateInfoCard(component, event);
+            this.diagram.uiManager.showInfoCard(object, event);
         } else {
             this.selectedComponent = null;
             this.diagram.uiManager.hideInfoCard();
         }
     }
     
-    resetComponentState(component) {
-        component.material = this.originalMaterials.get(component);
-        this.targetScales.set(component, new THREE.Vector3(1, 1, 1));
+    /**
+     * IMPROVED: Animate platform with its components floating together
+     */
+    animatePlatformWithComponents(platform) {
+        const platformLayer = platform.userData.layer;
+        
+        // Animate the platform itself
+        this.targetScales.set(platform, new THREE.Vector3(1.1, 1.1, 1.1));
+        
+        // Find and animate all components on this platform
+        const platformComponents = this.diagram.components.filter(component => 
+            component.userData.layer === platformLayer && component.userData.hasPlataform
+        );
+        
+        platformComponents.forEach(component => {
+            // Give each component a subtle floating animation
+            this.targetScales.set(component, new THREE.Vector3(1.1, 1.1, 1.1));
+            
+            // Store original position for floating
+            if (!component.userData.originalPosition) {
+                component.userData.originalPosition = component.position.clone();
+            }
+        });
+        
+        // Store platform original position for floating
+        if (!platform.userData.originalPosition) {
+            platform.userData.originalPosition = platform.position.clone();
+        }
+    }
+    
+    resetPlatformComponents(platform) {
+        const platformLayer = platform.userData.layer;
+        
+        // Reset all components on this platform
+        const platformComponents = this.diagram.components.filter(component => 
+            component.userData.layer === platformLayer && component.userData.hasPlataform
+        );
+        
+        platformComponents.forEach(component => {
+            this.resetComponentState(component);
+        });
     }
     
     updateAnimations() {
         const lerpFactor = 0.12;
         
-        this.diagram.components.forEach(component => {
-            const targetScale = this.targetScales.get(component);
+        const allObjects = [...this.diagram.components];
+        Object.values(this.diagram.platforms).forEach(platform => {
+            if (platform) allObjects.push(platform);
+        });
+        
+        allObjects.forEach(object => {
+            const targetScale = this.targetScales.get(object);
             if (targetScale) {
-                component.scale.lerp(targetScale, lerpFactor);
+                object.scale.lerp(targetScale, lerpFactor);
                 
-                // Add floating animation for selected components
-                if (component === this.selectedComponent) {
+                // IMPROVED: Better floating animation for platform and its components
+                if (object === this.selectedComponent || 
+                    (this.selectedComponent && this.selectedComponent.userData.type === 'platform' && 
+                     object.userData.layer === this.selectedComponent.userData.layer && 
+                     object.userData.hasPlataform)) {
+                    
                     const time = Date.now() * 0.002;
-                    const originalY = component.userData.originalY || component.userData.connectionPoint.y;
-                    component.position.y = originalY + Math.sin(time) * 0.1;
+                    const originalPos = object.userData.originalPosition || object.position;
+                    
+                    // More pronounced floating for selected elements
+                    const floatAmount = object.userData.type === 'platform' ? 0.08 : 0.12;
+                    const floatSpeed = object.userData.type === 'platform' ? 1 : 1.2;
+                    
+                    object.position.y = originalPos.y + Math.sin(time * floatSpeed) * floatAmount;
                     
                     // Pulsing glow effect
-                    if (component.material.emissiveIntensity !== undefined) {
-                        component.material.emissiveIntensity = 0.7 + Math.sin(time * 2) * 0.2;
+                    if (object.material.emissiveIntensity !== undefined) {
+                        object.material.emissiveIntensity = 0.7 + Math.sin(time * 2) * 0.2;
                     }
                 }
             }
         });
     }
     
-    registerComponent(component) {
-        this.originalMaterials.set(component, component.material);
-        this.targetScales.set(component, new THREE.Vector3(1, 1, 1));
+    resetComponentState(object) {
+        const originalMaterial = this.originalMaterials.get(object);
+        if (originalMaterial) {
+            object.material = originalMaterial;
+        }
+        
+        this.targetScales.set(object, new THREE.Vector3(1, 1, 1));
+        
+        // Reset position to original
+        if (object.userData.originalPosition) {
+            object.position.copy(object.userData.originalPosition);
+        } else {
+            // Fallback to stored original Y position
+            const originalY = object.userData.originalY;
+            if (originalY !== undefined) {
+                object.position.y = originalY;
+            }
+        }
+    }
+    
+    registerComponent(object) {
+        this.originalMaterials.set(object, object.material);
+        this.targetScales.set(object, new THREE.Vector3(1, 1, 1));
+        
+        // Store original position for floating animations
+        object.userData.originalPosition = object.position.clone();
+    }
+    
+    registerPlatform(platform) {
+        this.registerComponent(platform);
     }
     
     dispose() {
+        if (this.hoverTimeout) {
+            clearTimeout(this.hoverTimeout);
+        }
         this.diagram.container.removeEventListener('mousemove', this.onMouseMove);
         this.diagram.container.removeEventListener('click', this.onMouseClick);
     }
@@ -958,7 +1270,6 @@ class InteractionManager {
 
 /**
  * MAIN DIAGRAM3D CLASS
- * The main orchestrator that brings all components together
  */
 class Diagram3D {
     constructor(config) {
@@ -971,12 +1282,13 @@ class Diagram3D {
         }
         
         this.options = {
-            showControls: true,
-            showLegend: true,
-            showConnectionInfo: true,
+            showControls: false,
+            showLegend: false,
+            showConnectionInfo: false,
             enableInteraction: true,
-            animationEnabled: false,
+            animationEnabled: true,
             enableShadows: true,
+            showArrows: false,
             ...config.options
         };
         
@@ -984,7 +1296,6 @@ class Diagram3D {
         this.connections = config.connections || [];
         this.id = this.generateId();
         
-        // Core components
         this.components = [];
         this.platforms = {};
         
@@ -996,7 +1307,6 @@ class Diagram3D {
     }
     
     init() {
-        // Initialize core managers
         this.sceneManager = new SceneManager(this.container, this.options);
         this.connectionManager = new ConnectionManager(this.sceneManager.scene, this.options);
         this.uiManager = new UIManager(this);
@@ -1005,12 +1315,10 @@ class Diagram3D {
             this.interactionManager = new InteractionManager(this);
         }
         
-        // Build the diagram
         this.createElements();
         this.createConnections();
         this.startAnimationLoop();
         
-        // Make globally accessible for controls
         window[`diagram_${this.id}`] = this;
     }
     
@@ -1018,18 +1326,20 @@ class Diagram3D {
         const materials = this.createMaterials();
         
         Object.entries(this.data).forEach(([layerName, layerData]) => {
-            // Create platform if specified
             if (layerData.platform !== null && layerData.platform !== undefined) {
                 const platform = this.createPlatform(layerData.platform, materials[layerName] || materials.default, layerName);
                 this.platforms[layerName] = platform;
+                
+                if (this.interactionManager) {
+                    this.interactionManager.registerPlatform(platform);
+                }
             }
             
-            // Create components
             if (layerData.components) {
                 layerData.components.forEach(comp => {
-                const hasPlataform = (layerData.platform !== null && layerData.platform !== undefined);
-                const component = this.createComponent(comp, layerName, hasPlataform);
-                this.components.push(component);
+                    const hasPlataform = (layerData.platform !== null && layerData.platform !== undefined);
+                    const component = this.createComponent(comp, layerName, hasPlataform);
+                    this.components.push(component);
                     
                     if (this.interactionManager) {
                         this.interactionManager.registerComponent(component);
@@ -1053,12 +1363,13 @@ class Diagram3D {
     }
     
     createPlatform(platformData, material, layerName) {
-        const geometry = new THREE.BoxGeometry(
-            platformData.width || 4, 
-            platformData.height || 0.5, 
-            platformData.depth || 4
-        );
+        const width = platformData.width || 4;
+        const height = platformData.height || 0.5;
+        const depth = platformData.depth || 4;
+        
+        const geometry = new THREE.BoxGeometry(width, height, depth);
         const platform = new THREE.Mesh(geometry, material);
+        
         platform.position.set(
             platformData.x || 0, 
             platformData.y || -0.25, 
@@ -1068,6 +1379,8 @@ class Diagram3D {
         platform.userData = {
             type: 'platform',
             layer: layerName,
+            name: `${layerName.charAt(0).toUpperCase() + layerName.slice(1)} Platform`,
+            info: `Foundation layer for ${layerName} components`,
             connectionPoint: { 
                 x: platformData.x || 0, 
                 y: platformData.y || 0, 
@@ -1080,9 +1393,48 @@ class Diagram3D {
     
     createComponent(compData, layerName, hasPlataform) {
         const size = compData.size || 1.5;
-        const geometry = new THREE.BoxGeometry(size, size, size);
         
-        // Choose material based on whether component has platform
+        let geometry;
+        const isDatabaseComponent = this.isDatabaseComponent(compData.name);
+        
+        if (isDatabaseComponent) {
+            geometry = new THREE.CylinderGeometry(
+                size * 0.6,        
+                size * 0.6,        
+                size * 1.2,        
+                16,                
+                1                  
+            );
+        } else {
+            const shape = new THREE.Shape();
+            const halfSize = size / 2;
+            
+            const radius = 0.1;
+            shape.moveTo(-halfSize + radius, -halfSize);
+            shape.lineTo(halfSize - radius, -halfSize);
+            shape.quadraticCurveTo(halfSize, -halfSize, halfSize, -halfSize + radius);
+            shape.lineTo(halfSize, halfSize - radius);
+            shape.quadraticCurveTo(halfSize, halfSize, halfSize - radius, halfSize);
+            shape.lineTo(-halfSize + radius, halfSize);
+            shape.quadraticCurveTo(-halfSize, halfSize, -halfSize, halfSize - radius);
+            shape.lineTo(-halfSize, -halfSize + radius);
+            shape.quadraticCurveTo(-halfSize, -halfSize, -halfSize + radius, -halfSize);
+            
+            const extrudeSettings = {
+                depth: size,
+                bevelEnabled: true,
+                bevelSegments: 8,
+                steps: 1,
+                bevelSize: 0.08,
+                bevelThickness: 0.05
+            };
+            
+            geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            
+            // Center the extruded geometry to ensure proper connection points
+            geometry.center();
+        }
+        
         let material;
         if (hasPlataform) {
             material = new THREE.MeshLambertMaterial({ 
@@ -1091,7 +1443,6 @@ class Diagram3D {
                 transparent: true 
             });
         } else {
-            // Central cubes get special treatment
             material = new THREE.MeshLambertMaterial({ 
                 color: compData.color || 0x8b5cf6, 
                 opacity: 0.9, 
@@ -1102,7 +1453,19 @@ class Diagram3D {
         }
         
         const component = new THREE.Mesh(geometry, material);
-        const yPos = compData.y || (hasPlataform ? 0.75 : 0.75);
+        
+        // IMPROVED: More precise positioning on platforms
+        let yPos;
+        if (hasPlataform) {
+            // Position exactly on top of platform surface
+            const platformData = this.data[layerName].platform;
+            const platformHeight = platformData.height || 0.5;
+            const platformY = platformData.y || -0.25;
+            yPos = platformY + (platformHeight / 2) + (size / 2) + 0.05; // Small gap above platform
+        } else {
+            yPos = compData.y || 0.75; // Standalone cubes
+        }
+        
         component.position.set(compData.x || 0, yPos, compData.z || 0);
         component.castShadow = true;
         component.receiveShadow = true;
@@ -1114,6 +1477,7 @@ class Diagram3D {
             info: compData.info || 'No information available',
             hasPlataform: hasPlataform,
             originalY: yPos,
+            isDatabaseComponent: isDatabaseComponent,
             connectionPoint: { 
                 x: compData.x || 0, 
                 y: yPos, 
@@ -1123,6 +1487,17 @@ class Diagram3D {
         
         this.sceneManager.scene.add(component);
         return component;
+    }
+    
+    isDatabaseComponent(componentName) {
+        const databaseKeywords = ['airtable', 'excel', 'database', 'db', 'storage', 'data'];
+        const name = (componentName || '').toLowerCase();
+        
+        if (name.includes('airtable') || name.includes('excel')) {
+            return true;
+        }
+        
+        return databaseKeywords.some(keyword => name.includes(keyword));
     }
     
     createConnections() {
@@ -1150,7 +1525,6 @@ class Diagram3D {
         return null;
     }
     
-    // Public methods for external control
     toggleConnections() {
         const isVisible = this.connectionManager.connectionGroup.visible;
         this.connectionManager.setVisible(!isVisible);
@@ -1161,6 +1535,9 @@ class Diagram3D {
         if (this.interactionManager) {
             if (this.interactionManager.selectedComponent) {
                 this.interactionManager.resetComponentState(this.interactionManager.selectedComponent);
+                if (this.interactionManager.selectedComponent.userData.type === 'platform') {
+                    this.interactionManager.resetPlatformComponents(this.interactionManager.selectedComponent);
+                }
                 this.interactionManager.selectedComponent = null;
             }
             this.uiManager.hideInfoCard();
@@ -1185,20 +1562,17 @@ class Diagram3D {
         const animate = () => {
             requestAnimationFrame(animate);
             
-            // Update all animations
             this.connectionManager.updateAnimations();
             if (this.interactionManager) {
                 this.interactionManager.updateAnimations();
             }
             
-            // Render the scene
             this.sceneManager.render();
         };
         animate();
     }
     
     dispose() {
-        // Clean up all resources
         this.sceneManager.dispose();
         if (this.interactionManager) {
             this.interactionManager.dispose();
