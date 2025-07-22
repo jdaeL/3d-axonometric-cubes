@@ -158,7 +158,13 @@ document.addEventListener('DOMContentLoaded', function() {
             lineWidth: 4,                  // Fallback line width
             showArrows: false,             // Disable arrows globally
             precisePositioning: true,      // Enhanced element positioning
-            platformFloating: true         // Platform floating animations
+            platformFloating: true,        // Platform floating animations
+            mouseResponsive: true,         // Mouse-responsive camera control
+            mouseInfluence: 0.15,          // Mild mouse influence (0.0-1.0)
+            mouseDamping: 0.05,            // Smooth camera damping
+            autoResize: true,              // Automatic responsive resizing
+            touchOptimized: true,          // Touch-friendly interactions
+            performanceMode: 'adaptive'    // Adaptive performance based on device
         }
     });
     
@@ -178,12 +184,28 @@ document.addEventListener('DOMContentLoaded', function() {
             databaseShapes: true,          // Cylinder shapes for database components
             beveledEdges: true,            // Beveled edges for all components
             useTubeGeometry: true,         // 3D tube connections
-            tubeRadius: 0.07,              // Thinner connections
+            tubeRadius: 0.07,              // Slightly thinner connections
             showArrows: false,             // Disable arrows globally
             precisePositioning: true,      // Enhanced element positioning
-            platformFloating: true         // Platform floating animations
+            platformFloating: true,        // Platform floating animations
+            mouseResponsive: true,         // Mouse-responsive camera control
+            mouseInfluence: 0.12,          // Slightly milder for network diagram
+            mouseDamping: 0.06,            // Slightly more damping
+            autoResize: true,              // Automatic responsive resizing
+            touchOptimized: true,          // Touch-friendly interactions
+            performanceMode: 'adaptive'    // Adaptive performance based on device
         }
     });
     
     console.log('All  diagrams initialized successfully');
+    // setTimeout(() => {
+    //     const device1 = diagram1.getDeviceInfo();
+    //     const device2 = diagram2.getDeviceInfo();
+        
+    //     if (device1.isMobile || device1.isTablet) {
+    //         console.log('* is mobile');
+    //     } else {
+    //         console.log('* desktop');
+    //     }
+    // }, 100);
 });
